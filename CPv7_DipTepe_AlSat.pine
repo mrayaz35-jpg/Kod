@@ -24,40 +24,44 @@ g3 = "Risk Yonetimi"
 g4 = "Pivot S/R"
 g5 = "Kanal"
 g6 = "Mum Filtresi"
-g7 = "Hacim"
+g7 = "Hacim / BB"
 g8 = "Ek Filtreler"
+g9 = "Stochastic"
 
 ema_fast  = input.int(9,   "Hizli EMA",  minval=1, group=g1)
 ema_mid   = input.int(21,  "Orta EMA",   minval=1, group=g1)
 ema_slow  = input.int(50,  "Yavas EMA",  minval=1, group=g1)
 ema_trend = input.int(200, "Trend EMA",  minval=1, group=g1)
 
-rsi_len       = input.int(14,  "RSI Periyot",   minval=1,  group=g2)
-rsi_ob        = input.int(75,  "Asiri Alim",    minval=60, group=g2)
-rsi_os        = input.int(25,  "Asiri Satim",   maxval=40, group=g2)
-rsi_long_min  = input.int(40,  "Long Min RSI",  minval=20, maxval=60, group=g2)
-rsi_long_max  = input.int(75,  "Long Max RSI",  minval=50, maxval=90, group=g2)
-rsi_short_min = input.int(25,  "Short Min RSI", minval=10, maxval=50, group=g2)
-rsi_short_max = input.int(60,  "Short Max RSI", minval=30, maxval=80, group=g2)
+rsi_len       = input.int(14,  "RSI Periyot",   minval=1,            group=g2)
+rsi_ob        = input.int(75,  "Asiri Alim",    minval=60,           group=g2)
+rsi_os        = input.int(25,  "Asiri Satim",   maxval=40,           group=g2)
+// DIP icin RSI: dusuk aralik (gercek dip = asiri satis bolgesi)
+rsi_long_min  = input.int(25,  "Long Min RSI",  minval=10, maxval=55, group=g2)
+rsi_long_max  = input.int(52,  "Long Max RSI",  minval=35, maxval=70, group=g2)
+// TEPE icin RSI: yuksek aralik (gercek tepe = asiri alim bolgesi)
+rsi_short_min = input.int(55,  "Short Min RSI", minval=40, maxval=70, group=g2)
+rsi_short_max = input.int(80,  "Short Max RSI", minval=60, maxval=90, group=g2)
 macd_fast     = input.int(12,  "MACD Hizli",    group=g2)
 macd_slow     = input.int(26,  "MACD Yavas",    group=g2)
 macd_sig      = input.int(9,   "MACD Sinyal",   group=g2)
 
-sl_pct      = input.float(2.5,  "Stop-Loss %",       minval=0.5, step=0.1, group=g3)
-tp1_pct     = input.float(3.0,  "TP1 %",             minval=0.5, step=0.1, group=g3)
-tp2_pct     = input.float(6.0,  "TP2 %",             minval=0.5, step=0.1, group=g3)
-tp3_pct     = input.float(10.0, "TP3 %",             minval=0.5, step=0.1, group=g3)
-use_atr_sl  = input.bool(false, "ATR Bazli SL",                            group=g3)
-atr_sl_mult = input.float(2.0,  "ATR SL Katsayisi",  minval=0.5, step=0.1, group=g3)
-use_trail   = input.bool(false, "Trailing Stop",                            group=g3)
-trail_pct   = input.float(1.5,  "Trail Mesafesi %",  minval=0.1, step=0.1, group=g3)
+sl_pct        = input.float(2.5,  "Stop-Loss %",       minval=0.5, step=0.1, group=g3)
+tp1_pct       = input.float(3.0,  "TP1 %",             minval=0.5, step=0.1, group=g3)
+tp2_pct       = input.float(6.0,  "TP2 %",             minval=0.5, step=0.1, group=g3)
+tp3_pct       = input.float(10.0, "TP3 %",             minval=0.5, step=0.1, group=g3)
+use_atr_sl    = input.bool(false, "ATR Bazli SL",                            group=g3)
+atr_sl_mult   = input.float(2.0,  "ATR SL Katsayisi",  minval=0.5, step=0.1, group=g3)
+use_trail     = input.bool(false, "Trailing Stop",                            group=g3)
+trail_pct     = input.float(1.5,  "Trail Mesafesi %",  minval=0.1, step=0.1, group=g3)
 
-pv_lb   = input.int(5,     "Pivot Lookback (Dip/Tepe)", minval=3, maxval=15,  group=g4)
-sr_show = input.bool(true,  "S/R Cizgileri Goster",                           group=g4)
-sr_zone = input.float(1.0,  "S/R Yakinlik %",            minval=0.1, step=0.1, group=g4)
+pv_lb   = input.int(5,    "Pivot Lookback",     minval=3, maxval=15,   group=g4)
+sr_show = input.bool(true, "S/R Cizgileri",                             group=g4)
+// Daha siki zone: gercek destek/direnc yakinligi
+sr_zone = input.float(0.8, "S/R Yakinlik %",   minval=0.1, step=0.1,  group=g4)
 
-ch_len  = input.int(50,    "Kanal Periyot",       minval=10,  group=g5)
-ch_show = input.bool(true, "Kanal Goster",                    group=g5)
+ch_len  = input.int(50,    "Kanal Periyot",       minval=10,           group=g5)
+ch_show = input.bool(true, "Kanal Goster",                             group=g5)
 ch_dev  = input.float(2.0, "Kanal ATR Katsayisi", minval=0.5, step=0.1, group=g5)
 
 mum_show = input.bool(true,  "Mum Etiket Goster", group=g6)
@@ -67,13 +71,19 @@ doji_pct = input.float(6.0,  "Doji Esigi %",      minval=1.0, step=0.5, group=g6
 use_vol  = input.bool(true,  "Hacim Filtresi", group=g7)
 vol_mult = input.float(1.0,  "Hacim Carpani",  minval=0.5, step=0.1, group=g7)
 bb_show  = input.bool(true,  "BB Goster",      group=g7)
-bb_len   = input.int(20,     "BB Periyot",     minval=2,    group=g7)
+bb_len   = input.int(20,     "BB Periyot",     minval=2,   group=g7)
 bb_mult  = input.float(2.0,  "BB Katsayi",     minval=0.5, step=0.1, group=g7)
 
-trend_filter  = input.bool(true,  "EMA200 Trend Filtresi (Long=Boga/Short=Ayi)", group=g8)
-ema_align_flt = input.bool(false, "EMA Hizalama Filtresi (9>21>50)",              group=g8)
-arm_timeout   = input.int(3,      "Sinyal Zaman Asimi (Bar)",  minval=1, maxval=10, group=g8)
-min_score     = input.int(3,      "Min Sinyal Skoru (1-5)",    minval=1, maxval=5,  group=g8)
+trend_filter  = input.bool(true,  "EMA200 Trend Filtresi",             group=g8)
+ema_align_flt = input.bool(false, "EMA Hizalama Filtresi (9>21>50)",   group=g8)
+arm_timeout   = input.int(2,   "Sinyal Zaman Asimi (Bar)", minval=1, maxval=10, group=g8)
+// Skor max 6 oldu (stoch eklendi), min 4 daha secici
+min_score     = input.int(4,   "Min Sinyal Skoru (1-6)",   minval=1, maxval=6,  group=g8)
+
+stk_k  = input.int(14, "Stoch K Periyot", minval=3,  group=g9)
+stk_d  = input.int(3,  "Stoch D Periyot", minval=1,  group=g9)
+stk_os = input.int(30, "Stoch Asiri Satim (Long icin)", maxval=45, group=g9)
+stk_ob = input.int(70, "Stoch Asiri Alim (Short icin)", minval=55, group=g9)
 
 // ══════════════════════════════════════════════
 // GOSTERGELER
@@ -85,7 +95,7 @@ ema50  = ta.ema(close, ema_slow)
 ema200 = ta.ema(close, ema_trend)
 
 rsi = ta.rsi(close, rsi_len)
-[macd_l, sig_l, _] = ta.macd(close, macd_fast, macd_slow, macd_sig)
+[macd_l, sig_l, hist_l] = ta.macd(close, macd_fast, macd_slow, macd_sig)
 
 atr     = ta.atr(14)
 vol_avg = ta.sma(volume, 20)
@@ -94,6 +104,18 @@ vol_ok  = use_vol ? volume >= vol_avg * vol_mult : true
 [bb_mid, bb_up, bb_dn] = ta.bb(close, bb_len, bb_mult)
 bb_w  = bb_up - bb_dn
 bb_sq = bb_w < ta.sma(bb_w, 20) * 0.7
+
+// Stochastic
+sk = ta.stoch(close, high, low, stk_k)
+sd = ta.sma(sk, stk_d)
+// Dip teyidi: stoch asiri satis bolgesinden yukari donuyor
+stk_bull = sk <= stk_os + 15
+// Tepe teyidi: stoch asiri alim bolgesinden asagi donuyor
+stk_bear = sk >= stk_ob - 15
+
+// MACD histogram yonu: dipte yukari donuyor mu?
+macd_hist_up = hist_l > hist_l[1]   // histogram artiyor = momentum yukari
+macd_hist_dn = hist_l < hist_l[1]   // histogram azaliyor = momentum asagi
 
 // ══════════════════════════════════════════════
 // PIVOT DIP / TEPE
@@ -111,22 +133,18 @@ if not na(pl)
     last_sup := pl
 
 if not na(ph)
-    label.new(
-      bar_index[pv_lb], ph,
+    label.new(bar_index[pv_lb], ph,
       text      = "T:" + str.tostring(math.round(ph, 0)),
       style     = label.style_label_down,
       color     = color.new(color.red, 10),
-      textcolor = color.white,
-      size      = size.small)
+      textcolor = color.white, size=size.small)
 
 if not na(pl)
-    label.new(
-      bar_index[pv_lb], pl,
+    label.new(bar_index[pv_lb], pl,
       text      = "D:" + str.tostring(math.round(pl, 0)),
       style     = label.style_label_up,
       color     = color.new(color.lime, 10),
-      textcolor = color.black,
-      size      = size.small)
+      textcolor = color.black, size=size.small)
 
 var line res_ln = na
 var line sup_ln = na
@@ -134,19 +152,13 @@ var line sup_ln = na
 if sr_show
     if not na(ph)
         line.delete(res_ln)
-        res_ln := line.new(
-          x1=bar_index[pv_lb], y1=ph,
-          x2=bar_index,        y2=ph,
-          extend=extend.right,
-          color=color.new(color.red, 20),
+        res_ln := line.new(bar_index[pv_lb], ph, bar_index, ph,
+          extend=extend.right, color=color.new(color.red, 20),
           style=line.style_dashed, width=2)
     if not na(pl)
         line.delete(sup_ln)
-        sup_ln := line.new(
-          x1=bar_index[pv_lb], y1=pl,
-          x2=bar_index,        y2=pl,
-          extend=extend.right,
-          color=color.new(color.lime, 20),
+        sup_ln := line.new(bar_index[pv_lb], pl, bar_index, pl,
+          extend=extend.right, color=color.new(color.lime, 20),
           style=line.style_dashed, width=2)
 
 near_res = not na(last_res) and math.abs(close - last_res) / last_res * 100 <= sr_zone
@@ -162,6 +174,10 @@ ch_dn = lr - ch_dev * atr
 
 at_ch_top = close > ch_up
 at_ch_bot = close < ch_dn
+
+// Kanal alt/ust yakinligi — %0.8'e sikildi (gercek sinir)
+near_ch_bot = close <= ch_dn * 1.008
+near_ch_top = close >= ch_up * 0.992
 
 plot(ch_show ? ch_up : na, "K.Ust",  color=color.new(color.purple, 30), linewidth=1)
 plot(ch_show ? lr    : na, "K.Orta", color=color.new(color.purple, 55), linewidth=1, style=plot.style_circles)
@@ -221,24 +237,23 @@ bull_pat = ham or beng or mstr or sol3 or pier or bhar or iham
 bear_pat = shot or aeng or estr or cro3 or dclk or ahar or hang
 
 if mum_show
-    // Bull etiketler — dip yakininda veya kanal altinda
-    if ham and (near_sup or close < ch_dn * 1.02)
+    if ham  and (near_sup or near_ch_bot)
         label.new(bar_index, l1 - atr * 0.3, "Ck",
           style=label.style_label_up, color=color.new(color.teal, 15),
           textcolor=color.white, size=size.tiny)
-    if iham and (near_sup or close < ch_dn * 1.02)
+    if iham and (near_sup or near_ch_bot)
         label.new(bar_index, l1 - atr * 0.3, "TCk",
           style=label.style_label_up, color=color.new(color.teal, 25),
           textcolor=color.white, size=size.tiny)
-    if beng and (near_sup or close < ch_dn * 1.02)
+    if beng and (near_sup or near_ch_bot)
         label.new(bar_index, l1 - atr * 0.3, "BE",
           style=label.style_label_up, color=color.new(color.green, 15),
           textcolor=color.white, size=size.tiny)
-    if bhar and (near_sup or close < ch_dn * 1.02)
+    if bhar and (near_sup or near_ch_bot)
         label.new(bar_index, l1 - atr * 0.3, "BH",
           style=label.style_label_up, color=color.new(color.green, 25),
           textcolor=color.white, size=size.tiny)
-    if pier and (near_sup or close < ch_dn * 1.02)
+    if pier and (near_sup or near_ch_bot)
         label.new(bar_index, l1 - atr * 0.3, "PL",
           style=label.style_label_up, color=color.new(color.teal, 10),
           textcolor=color.white, size=size.tiny)
@@ -246,28 +261,27 @@ if mum_show
         label.new(bar_index, l1 - atr * 0.5, "MS",
           style=label.style_label_up, color=color.new(color.lime, 10),
           textcolor=color.black, size=size.tiny)
-    if sol3
+    if sol3 and (near_sup or near_ch_bot)
         label.new(bar_index, l1 - atr * 0.5, "3A",
           style=label.style_label_up, color=color.new(color.green, 10),
           textcolor=color.white, size=size.tiny)
-    // Bear etiketler — tepe yakininda veya kanal ustunde
-    if shot and (near_res or close > ch_up * 0.98)
+    if shot and (near_res or near_ch_top)
         label.new(bar_index, h1 + atr * 0.3, "KY",
           style=label.style_label_down, color=color.new(color.orange, 15),
           textcolor=color.white, size=size.tiny)
-    if hang and (near_res or close > ch_up * 0.98)
+    if hang and (near_res or near_ch_top)
         label.new(bar_index, h1 + atr * 0.3, "HM",
           style=label.style_label_down, color=color.new(color.orange, 25),
           textcolor=color.white, size=size.tiny)
-    if aeng and (near_res or close > ch_up * 0.98)
+    if aeng and (near_res or near_ch_top)
         label.new(bar_index, h1 + atr * 0.3, "AE",
           style=label.style_label_down, color=color.new(color.red, 15),
           textcolor=color.white, size=size.tiny)
-    if ahar and (near_res or close > ch_up * 0.98)
+    if ahar and (near_res or near_ch_top)
         label.new(bar_index, h1 + atr * 0.3, "AH",
           style=label.style_label_down, color=color.new(color.red, 25),
           textcolor=color.white, size=size.tiny)
-    if dclk and (near_res or close > ch_up * 0.98)
+    if dclk and (near_res or near_ch_top)
         label.new(bar_index, h1 + atr * 0.3, "KBL",
           style=label.style_label_down, color=color.new(color.maroon, 15),
           textcolor=color.white, size=size.tiny)
@@ -275,7 +289,7 @@ if mum_show
         label.new(bar_index, h1 + atr * 0.5, "AS",
           style=label.style_label_down, color=color.new(color.maroon, 10),
           textcolor=color.white, size=size.tiny)
-    if cro3
+    if cro3 and (near_res or near_ch_top)
         label.new(bar_index, h1 + atr * 0.5, "3K",
           style=label.style_label_down, color=color.new(color.red, 10),
           textcolor=color.white, size=size.tiny)
@@ -289,31 +303,38 @@ bear_trend = close < ema200
 ema_bull   = ema9 > ema21 and ema21 > ema50
 ema_bear   = ema9 < ema21 and ema21 < ema50
 
-macd_bull = ta.crossover(macd_l, sig_l) or (macd_l > sig_l)
-macd_bear = ta.crossunder(macd_l, sig_l) or (macd_l < sig_l)
+macd_bull = ta.crossover(macd_l, sig_l) or (macd_l > sig_l and macd_hist_up)
+macd_bear = ta.crossunder(macd_l, sig_l) or (macd_l < sig_l and macd_hist_dn)
 
 rsi_bull = rsi >= rsi_long_min  and rsi <= rsi_long_max
-rsi_bear = rsi <= rsi_short_max and rsi >= rsi_short_min
+rsi_bear = rsi >= rsi_short_min and rsi <= rsi_short_max
+
+// Fiyat konumu: dipte mi tepede mi?
+// Long icin: fiyat EMA50'nin altinda olmali (gercek geri cekilis)
+price_at_dip  = close <= ema50 * 1.01
+// Short icin: fiyat EMA50'nin ustunde olmali (gercek yukselis)
+price_at_peak = close >= ema50 * 0.99
 
 // ══════════════════════════════════════════════
-// SINYAL SKORU (0-5)
-// Her onaylanan kosul 1 puan kazandirir
+// SINYAL SKORU (0-6) — Stoch eklendi
 // ══════════════════════════════════════════════
 
 long_score = (bull_pat ? 1 : 0) +
-             ((near_sup or close <= ch_dn * 1.015) ? 1 : 0) +
-             (rsi_bull  ? 1 : 0) +
-             (macd_bull ? 1 : 0) +
-             (vol_ok    ? 1 : 0)
+             ((near_sup or near_ch_bot) ? 1 : 0) +
+             (rsi_bull    ? 1 : 0) +
+             (macd_bull   ? 1 : 0) +
+             (vol_ok      ? 1 : 0) +
+             (stk_bull    ? 1 : 0)
 
 short_score = (bear_pat ? 1 : 0) +
-              ((near_res or close >= ch_up * 0.985) ? 1 : 0) +
-              (rsi_bear  ? 1 : 0) +
-              (macd_bear ? 1 : 0) +
-              (vol_ok    ? 1 : 0)
+              ((near_res or near_ch_top) ? 1 : 0) +
+              (rsi_bear    ? 1 : 0) +
+              (macd_bear   ? 1 : 0) +
+              (vol_ok      ? 1 : 0) +
+              (stk_bear    ? 1 : 0)
 
 // ══════════════════════════════════════════════
-// HAM SİNYALLER
+// HAM SİNYALLER — Daha siki kosullar
 // ══════════════════════════════════════════════
 
 long_trend_ok  = trend_filter  ? bull_trend : true
@@ -322,27 +343,23 @@ long_ema_ok    = ema_align_flt ? ema_bull   : true
 short_ema_ok   = ema_align_flt ? ema_bear   : true
 
 long_raw = bull_pat and
-  (near_sup or close <= ch_dn * 1.015) and
+  (near_sup or near_ch_bot) and
   rsi_bull and vol_ok and macd_bull and
+  price_at_dip and
   long_trend_ok and long_ema_ok and
   not at_ch_top and not (rsi > rsi_ob) and
   long_score >= min_score
 
 short_raw = bear_pat and
-  (near_res or close >= ch_up * 0.985) and
+  (near_res or near_ch_top) and
   rsi_bear and vol_ok and macd_bear and
+  price_at_peak and
   short_trend_ok and short_ema_ok and
   not at_ch_bot and not (rsi < rsi_os) and
   short_score >= min_score
 
 // ══════════════════════════════════════════════
 // ARMED STATE + ZAMAN ASIMI
-//
-// Mantik:
-//   Adim 1: Ham sinyal → armed = true, sayac = 0
-//   Adim 2: Her barda sayac artar
-//   Adim 3: arm_timeout asiminda sinyal iptal
-//   Adim 4: Teyit barinda giris yapilir
 // ══════════════════════════════════════════════
 
 var bool la      = false
@@ -350,7 +367,6 @@ var bool sa      = false
 var int  la_bars = 0
 var int  sa_bars = 0
 
-// Yeni sinyal gelince arm et
 if long_raw and strategy.position_size == 0
     la      := true
     sa      := false
@@ -363,7 +379,6 @@ if short_raw and strategy.position_size == 0
     sa_bars := 0
     la_bars := 0
 
-// Zaman asimi: arm_timeout bar gecinece sifirla
 if la
     la_bars += 1
     if la_bars > arm_timeout
@@ -376,14 +391,12 @@ if sa
         sa      := false
         sa_bars := 0
 
-// Pozisyon acilinca sifirla
 if strategy.position_size != 0
     la      := false
     sa      := false
     la_bars := 0
     sa_bars := 0
 
-// 1 BAR KAPANIŞ TEYİDİ
 long_ok  = la[1] and close > open and not na(close)
 short_ok = sa[1] and close < open and not na(close)
 
@@ -395,7 +408,7 @@ f_sl_long(ep)  => use_atr_sl ? ep - atr * atr_sl_mult : ep * (1 - sl_pct / 100)
 f_sl_short(ep) => use_atr_sl ? ep + atr * atr_sl_mult : ep * (1 + sl_pct / 100)
 
 // ══════════════════════════════════════════════
-// STRATEJİ GİRİŞ / ÇIKIŞ
+// GİRİŞ / ÇIKIŞ
 // ══════════════════════════════════════════════
 
 var float sl_p        = na
@@ -422,7 +435,6 @@ if short_ok and strategy.position_size == 0
     trail_ticks := math.round(close * trail_pct / 100 / syminfo.mintick)
     sa          := false
 
-// LONG cikislar
 if strategy.position_size > 0
     if use_trail
         strategy.exit("TRAIL_L", from_entry="LONG",
@@ -437,7 +449,6 @@ if strategy.position_size > 0
     if ema_bear and close < ema50
         strategy.close("LONG", comment="Trend Son")
 
-// SHORT cikislar
 if strategy.position_size < 0
     if use_trail
         strategy.exit("TRAIL_S", from_entry="SHORT",
@@ -466,29 +477,22 @@ plot(bb_show ? bb_dn  : na, "BB-", color=color.new(color.silver, 60), linewidth=
 plot(bb_show ? bb_mid : na, "BBM", color=color.new(color.silver, 80), linewidth=1, style=plot.style_circles)
 
 bgcolor(bull_trend ? color.new(color.green,  96) : color.new(color.red, 96), title="Trend BG")
-bgcolor(bb_sq      ? color.new(color.yellow, 91) : na,                        title="BB Sikisma")
+bgcolor(bb_sq      ? color.new(color.yellow, 91) : na, title="BB Sikisma")
 
 plotshape(la and not long_ok  and strategy.position_size == 0,
   title="AL?", location=location.belowbar,
-  style=shape.triangleup,
-  color=color.new(color.lime, 30), size=size.tiny)
-
+  style=shape.triangleup, color=color.new(color.lime, 30), size=size.tiny)
 plotshape(sa and not short_ok and strategy.position_size == 0,
   title="SAT?", location=location.abovebar,
-  style=shape.triangledown,
-  color=color.new(color.red, 30), size=size.tiny)
-
+  style=shape.triangledown, color=color.new(color.red, 30), size=size.tiny)
 plotshape(long_ok  and strategy.position_size == 0,
-  title="AL",  location=location.belowbar,
-  style=shape.labelup,
-  color=color.new(color.lime, 0),
-  text="AL",   textcolor=color.black, size=size.large)
-
+  title="AL", location=location.belowbar,
+  style=shape.labelup, color=color.new(color.lime, 0),
+  text="AL", textcolor=color.black, size=size.large)
 plotshape(short_ok and strategy.position_size == 0,
   title="SAT", location=location.abovebar,
-  style=shape.labeldown,
-  color=color.new(color.red, 0),
-  text="SAT",  textcolor=color.white, size=size.large)
+  style=shape.labeldown, color=color.new(color.red, 0),
+  text="SAT", textcolor=color.white, size=size.large)
 
 plot(strategy.position_size != 0 ? sl_p  : na, "SL",  color=color.red,   linewidth=1, style=plot.style_linebr)
 plot(strategy.position_size != 0 ? tp1_p : na, "TP1", color=color.lime,  linewidth=1, style=plot.style_linebr)
@@ -496,10 +500,10 @@ plot(strategy.position_size != 0 ? tp2_p : na, "TP2", color=color.green, linewid
 plot(strategy.position_size != 0 ? tp3_p : na, "TP3", color=color.green, linewidth=2, style=plot.style_linebr)
 
 // ══════════════════════════════════════════════
-// DASHBOARD — 8 SATIR
+// DASHBOARD — 9 SATIR
 // ══════════════════════════════════════════════
 
-var table db = table.new(position.top_right, 2, 8,
+var table db = table.new(position.top_right, 2, 9,
   bgcolor=color.new(color.black, 25),
   border_color=color.new(color.gray, 45),
   border_width=1, frame_color=color.gray, frame_width=1)
@@ -515,6 +519,7 @@ if barstate.islast
     wr  = strategy.closedtrades > 0 ? math.round(strategy.wintrades / strategy.closedtrades * 100, 1) : 0.0
     sc  = strategy.position_size > 0 ? long_score : strategy.position_size < 0 ? short_score : math.max(long_score, short_score)
     scc = sc >= min_score ? color.lime : color.orange
+    skc = sk <= stk_os ? color.lime : sk >= stk_ob ? color.red : color.orange
 
     table.cell(db, 0, 0, syminfo.ticker,   text_color=color.yellow, bgcolor=color.new(color.navy, 15), text_size=size.small)
     table.cell(db, 1, 0, timeframe.period, text_color=color.white,  bgcolor=color.new(color.navy, 15), text_size=size.small)
@@ -524,14 +529,16 @@ if barstate.islast
     table.cell(db, 1, 2, ps,       text_color=pc,         text_size=size.tiny)
     table.cell(db, 0, 3, "RSI",    text_color=color.gray, text_size=size.tiny)
     table.cell(db, 1, 3, str.tostring(math.round(rsi, 1)), text_color=rc,  text_size=size.tiny)
-    table.cell(db, 0, 4, "Skor",   text_color=color.gray, text_size=size.tiny)
-    table.cell(db, 1, 4, str.tostring(sc) + "/5",          text_color=scc, text_size=size.tiny)
-    table.cell(db, 0, 5, "P&L",    text_color=color.gray, text_size=size.tiny)
-    table.cell(db, 1, 5, str.tostring(math.round(strategy.openprofit, 0)) + "$", text_color=plc, text_size=size.tiny)
-    table.cell(db, 0, 6, "Net",    text_color=color.gray, text_size=size.tiny)
-    table.cell(db, 1, 6, str.tostring(math.round(strategy.netprofit, 0)) + "$",  text_color=nc,  text_size=size.tiny)
-    table.cell(db, 0, 7, "W%|N",   text_color=color.gray, text_size=size.tiny)
-    table.cell(db, 1, 7, str.tostring(wr) + "%|" + str.tostring(strategy.closedtrades), text_color=color.yellow, text_size=size.tiny)
+    table.cell(db, 0, 4, "Stoch",  text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 4, str.tostring(math.round(sk, 1)), text_color=skc,  text_size=size.tiny)
+    table.cell(db, 0, 5, "Skor",   text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 5, str.tostring(sc) + "/6",          text_color=scc, text_size=size.tiny)
+    table.cell(db, 0, 6, "P&L",    text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 6, str.tostring(math.round(strategy.openprofit, 0)) + "$", text_color=plc, text_size=size.tiny)
+    table.cell(db, 0, 7, "Net",    text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 7, str.tostring(math.round(strategy.netprofit, 0)) + "$",  text_color=nc,  text_size=size.tiny)
+    table.cell(db, 0, 8, "W%|N",   text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 8, str.tostring(wr) + "%|" + str.tostring(strategy.closedtrades), text_color=color.yellow, text_size=size.tiny)
 
 // ══════════════════════════════════════════════
 // ALARMLAR
