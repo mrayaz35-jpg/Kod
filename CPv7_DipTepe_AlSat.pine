@@ -1,0 +1,546 @@
+//@version=6
+strategy(
+  title              = "CPv7 | Dip-Tepe Canli AlSat",
+  shorttitle         = "CPv7",
+  overlay            = true,
+  pyramiding         = 0,
+  default_qty_type   = strategy.percent_of_equity,
+  default_qty_value  = 10,
+  commission_type    = strategy.commission.percent,
+  commission_value   = 0.05,
+  slippage           = 2,
+  max_lines_count    = 500,
+  max_labels_count   = 500,
+  calc_on_every_tick = false
+)
+
+// ══════════════════════════════════════════════
+// INPUTS
+// ══════════════════════════════════════════════
+
+g1 = "EMA"
+g2 = "RSI / MACD"
+g3 = "Risk Yonetimi"
+g4 = "Pivot S/R"
+g5 = "Kanal"
+g6 = "Mum Filtresi"
+g7 = "Hacim"
+g8 = "Ek Filtreler"
+
+ema_fast  = input.int(9,   "Hizli EMA",  minval=1, group=g1)
+ema_mid   = input.int(21,  "Orta EMA",   minval=1, group=g1)
+ema_slow  = input.int(50,  "Yavas EMA",  minval=1, group=g1)
+ema_trend = input.int(200, "Trend EMA",  minval=1, group=g1)
+
+rsi_len       = input.int(14,  "RSI Periyot",   minval=1,  group=g2)
+rsi_ob        = input.int(75,  "Asiri Alim",    minval=60, group=g2)
+rsi_os        = input.int(25,  "Asiri Satim",   maxval=40, group=g2)
+rsi_long_min  = input.int(40,  "Long Min RSI",  minval=20, maxval=60, group=g2)
+rsi_long_max  = input.int(75,  "Long Max RSI",  minval=50, maxval=90, group=g2)
+rsi_short_min = input.int(25,  "Short Min RSI", minval=10, maxval=50, group=g2)
+rsi_short_max = input.int(60,  "Short Max RSI", minval=30, maxval=80, group=g2)
+macd_fast     = input.int(12,  "MACD Hizli",    group=g2)
+macd_slow     = input.int(26,  "MACD Yavas",    group=g2)
+macd_sig      = input.int(9,   "MACD Sinyal",   group=g2)
+
+sl_pct      = input.float(2.5,  "Stop-Loss %",       minval=0.5, step=0.1, group=g3)
+tp1_pct     = input.float(3.0,  "TP1 %",             minval=0.5, step=0.1, group=g3)
+tp2_pct     = input.float(6.0,  "TP2 %",             minval=0.5, step=0.1, group=g3)
+tp3_pct     = input.float(10.0, "TP3 %",             minval=0.5, step=0.1, group=g3)
+use_atr_sl  = input.bool(false, "ATR Bazli SL",                            group=g3)
+atr_sl_mult = input.float(2.0,  "ATR SL Katsayisi",  minval=0.5, step=0.1, group=g3)
+use_trail   = input.bool(false, "Trailing Stop",                            group=g3)
+trail_pct   = input.float(1.5,  "Trail Mesafesi %",  minval=0.1, step=0.1, group=g3)
+
+pv_lb   = input.int(5,     "Pivot Lookback (Dip/Tepe)", minval=3, maxval=15,  group=g4)
+sr_show = input.bool(true,  "S/R Cizgileri Goster",                           group=g4)
+sr_zone = input.float(1.0,  "S/R Yakinlik %",            minval=0.1, step=0.1, group=g4)
+
+ch_len  = input.int(50,    "Kanal Periyot",       minval=10,  group=g5)
+ch_show = input.bool(true, "Kanal Goster",                    group=g5)
+ch_dev  = input.float(2.0, "Kanal ATR Katsayisi", minval=0.5, step=0.1, group=g5)
+
+mum_show = input.bool(true,  "Mum Etiket Goster", group=g6)
+hmr_rat  = input.float(1.8,  "Cekic Golge Orani", minval=1.0, step=0.1, group=g6)
+doji_pct = input.float(6.0,  "Doji Esigi %",      minval=1.0, step=0.5, group=g6)
+
+use_vol  = input.bool(true,  "Hacim Filtresi", group=g7)
+vol_mult = input.float(1.0,  "Hacim Carpani",  minval=0.5, step=0.1, group=g7)
+bb_show  = input.bool(true,  "BB Goster",      group=g7)
+bb_len   = input.int(20,     "BB Periyot",     minval=2,    group=g7)
+bb_mult  = input.float(2.0,  "BB Katsayi",     minval=0.5, step=0.1, group=g7)
+
+trend_filter  = input.bool(true,  "EMA200 Trend Filtresi (Long=Boga/Short=Ayi)", group=g8)
+ema_align_flt = input.bool(false, "EMA Hizalama Filtresi (9>21>50)",              group=g8)
+arm_timeout   = input.int(3,      "Sinyal Zaman Asimi (Bar)",  minval=1, maxval=10, group=g8)
+min_score     = input.int(3,      "Min Sinyal Skoru (1-5)",    minval=1, maxval=5,  group=g8)
+
+// ══════════════════════════════════════════════
+// GOSTERGELER
+// ══════════════════════════════════════════════
+
+ema9   = ta.ema(close, ema_fast)
+ema21  = ta.ema(close, ema_mid)
+ema50  = ta.ema(close, ema_slow)
+ema200 = ta.ema(close, ema_trend)
+
+rsi = ta.rsi(close, rsi_len)
+[macd_l, sig_l, _] = ta.macd(close, macd_fast, macd_slow, macd_sig)
+
+atr     = ta.atr(14)
+vol_avg = ta.sma(volume, 20)
+vol_ok  = use_vol ? volume >= vol_avg * vol_mult : true
+
+[bb_mid, bb_up, bb_dn] = ta.bb(close, bb_len, bb_mult)
+bb_w  = bb_up - bb_dn
+bb_sq = bb_w < ta.sma(bb_w, 20) * 0.7
+
+// ══════════════════════════════════════════════
+// PIVOT DIP / TEPE
+// ══════════════════════════════════════════════
+
+ph = ta.pivothigh(high, pv_lb, pv_lb)
+pl = ta.pivotlow(low,   pv_lb, pv_lb)
+
+var float last_res = na
+var float last_sup = na
+
+if not na(ph)
+    last_res := ph
+if not na(pl)
+    last_sup := pl
+
+if not na(ph)
+    label.new(
+      bar_index[pv_lb], ph,
+      text      = "T:" + str.tostring(math.round(ph, 0)),
+      style     = label.style_label_down,
+      color     = color.new(color.red, 10),
+      textcolor = color.white,
+      size      = size.small)
+
+if not na(pl)
+    label.new(
+      bar_index[pv_lb], pl,
+      text      = "D:" + str.tostring(math.round(pl, 0)),
+      style     = label.style_label_up,
+      color     = color.new(color.lime, 10),
+      textcolor = color.black,
+      size      = size.small)
+
+var line res_ln = na
+var line sup_ln = na
+
+if sr_show
+    if not na(ph)
+        line.delete(res_ln)
+        res_ln := line.new(
+          x1=bar_index[pv_lb], y1=ph,
+          x2=bar_index,        y2=ph,
+          extend=extend.right,
+          color=color.new(color.red, 20),
+          style=line.style_dashed, width=2)
+    if not na(pl)
+        line.delete(sup_ln)
+        sup_ln := line.new(
+          x1=bar_index[pv_lb], y1=pl,
+          x2=bar_index,        y2=pl,
+          extend=extend.right,
+          color=color.new(color.lime, 20),
+          style=line.style_dashed, width=2)
+
+near_res = not na(last_res) and math.abs(close - last_res) / last_res * 100 <= sr_zone
+near_sup = not na(last_sup) and math.abs(close - last_sup) / last_sup * 100 <= sr_zone
+
+// ══════════════════════════════════════════════
+// TREND KANALI (Lineer Regresyon + ATR)
+// ══════════════════════════════════════════════
+
+lr    = ta.linreg(close, ch_len, 0)
+ch_up = lr + ch_dev * atr
+ch_dn = lr - ch_dev * atr
+
+at_ch_top = close > ch_up
+at_ch_bot = close < ch_dn
+
+plot(ch_show ? ch_up : na, "K.Ust",  color=color.new(color.purple, 30), linewidth=1)
+plot(ch_show ? lr    : na, "K.Orta", color=color.new(color.purple, 55), linewidth=1, style=plot.style_circles)
+plot(ch_show ? ch_dn : na, "K.Alt",  color=color.new(color.purple, 30), linewidth=1)
+pu = plot(ch_show ? ch_up : na, display=display.none)
+pd = plot(ch_show ? ch_dn : na, display=display.none)
+fill(pu, pd, color=color.new(color.purple, 94))
+
+// ══════════════════════════════════════════════
+// MUM FORMASYONLARI
+// ══════════════════════════════════════════════
+
+o1  = open
+h1  = high
+l1  = low
+c1  = close
+b1  = math.abs(c1 - o1)
+r1  = h1 - l1
+u1  = h1 - math.max(c1, o1)
+d1  = math.min(c1, o1) - l1
+up1 = c1 > o1
+dn1 = c1 < o1
+
+o2  = open[1]
+c2  = close[1]
+h2  = high[1]
+l2  = low[1]
+b2  = math.abs(c2 - o2)
+up2 = c2 > o2
+dn2 = c2 < o2
+
+o3  = open[2]
+c3  = close[2]
+b3  = math.abs(c3 - o3)
+up3 = c3 > o3
+dn3 = c3 < o3
+
+// BULLISH formasyonlar
+ham  = d1 >= b1 * hmr_rat and u1 <= b1 * 0.5 and b1 > 0 and dn2
+iham = u1 >= b1 * hmr_rat and d1 <= b1 * 0.5 and b1 > 0
+beng = dn2 and up1 and o1 < c2 and c1 > o2 and b1 > b2
+bhar = dn2 and up1 and o1 > c2 and c1 < o2 and b1 < b2
+pier = dn2 and up1 and o1 < l2 and c1 > (o2 + c2) / 2 and c1 < o2
+mstr = dn3 and b2 < b3 * 0.5 and up1 and c1 > (o3 + c3) / 2
+sol3 = up1 and up2 and up3 and c1 > c2 and c2 > c3
+
+// BEARISH formasyonlar
+shot = u1 >= b1 * hmr_rat and d1 <= b1 * 0.3 and dn1 and up2
+hang = d1 >= b1 * hmr_rat and u1 <= b1 * 0.5 and dn1
+aeng = up2 and dn1 and o1 > c2 and c1 < o2 and b1 > b2
+ahar = up2 and dn1 and o1 < c2 and c1 > o2 and b1 < b2
+dclk = up2 and dn1 and o1 > h2 and c1 < (o2 + c2) / 2 and c1 > o2
+estr = up3 and b2 < b3 * 0.5 and dn1 and c1 < (o3 + c3) / 2
+cro3 = dn1 and dn2 and dn3 and c1 < c2 and c2 < c3
+
+bull_pat = ham or beng or mstr or sol3 or pier or bhar or iham
+bear_pat = shot or aeng or estr or cro3 or dclk or ahar or hang
+
+if mum_show
+    // Bull etiketler — dip yakininda veya kanal altinda
+    if ham and (near_sup or close < ch_dn * 1.02)
+        label.new(bar_index, l1 - atr * 0.3, "Ck",
+          style=label.style_label_up, color=color.new(color.teal, 15),
+          textcolor=color.white, size=size.tiny)
+    if iham and (near_sup or close < ch_dn * 1.02)
+        label.new(bar_index, l1 - atr * 0.3, "TCk",
+          style=label.style_label_up, color=color.new(color.teal, 25),
+          textcolor=color.white, size=size.tiny)
+    if beng and (near_sup or close < ch_dn * 1.02)
+        label.new(bar_index, l1 - atr * 0.3, "BE",
+          style=label.style_label_up, color=color.new(color.green, 15),
+          textcolor=color.white, size=size.tiny)
+    if bhar and (near_sup or close < ch_dn * 1.02)
+        label.new(bar_index, l1 - atr * 0.3, "BH",
+          style=label.style_label_up, color=color.new(color.green, 25),
+          textcolor=color.white, size=size.tiny)
+    if pier and (near_sup or close < ch_dn * 1.02)
+        label.new(bar_index, l1 - atr * 0.3, "PL",
+          style=label.style_label_up, color=color.new(color.teal, 10),
+          textcolor=color.white, size=size.tiny)
+    if mstr
+        label.new(bar_index, l1 - atr * 0.5, "MS",
+          style=label.style_label_up, color=color.new(color.lime, 10),
+          textcolor=color.black, size=size.tiny)
+    if sol3
+        label.new(bar_index, l1 - atr * 0.5, "3A",
+          style=label.style_label_up, color=color.new(color.green, 10),
+          textcolor=color.white, size=size.tiny)
+    // Bear etiketler — tepe yakininda veya kanal ustunde
+    if shot and (near_res or close > ch_up * 0.98)
+        label.new(bar_index, h1 + atr * 0.3, "KY",
+          style=label.style_label_down, color=color.new(color.orange, 15),
+          textcolor=color.white, size=size.tiny)
+    if hang and (near_res or close > ch_up * 0.98)
+        label.new(bar_index, h1 + atr * 0.3, "HM",
+          style=label.style_label_down, color=color.new(color.orange, 25),
+          textcolor=color.white, size=size.tiny)
+    if aeng and (near_res or close > ch_up * 0.98)
+        label.new(bar_index, h1 + atr * 0.3, "AE",
+          style=label.style_label_down, color=color.new(color.red, 15),
+          textcolor=color.white, size=size.tiny)
+    if ahar and (near_res or close > ch_up * 0.98)
+        label.new(bar_index, h1 + atr * 0.3, "AH",
+          style=label.style_label_down, color=color.new(color.red, 25),
+          textcolor=color.white, size=size.tiny)
+    if dclk and (near_res or close > ch_up * 0.98)
+        label.new(bar_index, h1 + atr * 0.3, "KBL",
+          style=label.style_label_down, color=color.new(color.maroon, 15),
+          textcolor=color.white, size=size.tiny)
+    if estr
+        label.new(bar_index, h1 + atr * 0.5, "AS",
+          style=label.style_label_down, color=color.new(color.maroon, 10),
+          textcolor=color.white, size=size.tiny)
+    if cro3
+        label.new(bar_index, h1 + atr * 0.5, "3K",
+          style=label.style_label_down, color=color.new(color.red, 10),
+          textcolor=color.white, size=size.tiny)
+
+// ══════════════════════════════════════════════
+// TREND / EMA / MACD FILTRELERI
+// ══════════════════════════════════════════════
+
+bull_trend = close > ema200
+bear_trend = close < ema200
+ema_bull   = ema9 > ema21 and ema21 > ema50
+ema_bear   = ema9 < ema21 and ema21 < ema50
+
+macd_bull = ta.crossover(macd_l, sig_l) or (macd_l > sig_l)
+macd_bear = ta.crossunder(macd_l, sig_l) or (macd_l < sig_l)
+
+rsi_bull = rsi >= rsi_long_min  and rsi <= rsi_long_max
+rsi_bear = rsi <= rsi_short_max and rsi >= rsi_short_min
+
+// ══════════════════════════════════════════════
+// SINYAL SKORU (0-5)
+// Her onaylanan kosul 1 puan kazandirir
+// ══════════════════════════════════════════════
+
+long_score = (bull_pat ? 1 : 0) +
+             ((near_sup or close <= ch_dn * 1.015) ? 1 : 0) +
+             (rsi_bull  ? 1 : 0) +
+             (macd_bull ? 1 : 0) +
+             (vol_ok    ? 1 : 0)
+
+short_score = (bear_pat ? 1 : 0) +
+              ((near_res or close >= ch_up * 0.985) ? 1 : 0) +
+              (rsi_bear  ? 1 : 0) +
+              (macd_bear ? 1 : 0) +
+              (vol_ok    ? 1 : 0)
+
+// ══════════════════════════════════════════════
+// HAM SİNYALLER
+// ══════════════════════════════════════════════
+
+long_trend_ok  = trend_filter  ? bull_trend : true
+short_trend_ok = trend_filter  ? bear_trend : true
+long_ema_ok    = ema_align_flt ? ema_bull   : true
+short_ema_ok   = ema_align_flt ? ema_bear   : true
+
+long_raw = bull_pat and
+  (near_sup or close <= ch_dn * 1.015) and
+  rsi_bull and vol_ok and macd_bull and
+  long_trend_ok and long_ema_ok and
+  not at_ch_top and not (rsi > rsi_ob) and
+  long_score >= min_score
+
+short_raw = bear_pat and
+  (near_res or close >= ch_up * 0.985) and
+  rsi_bear and vol_ok and macd_bear and
+  short_trend_ok and short_ema_ok and
+  not at_ch_bot and not (rsi < rsi_os) and
+  short_score >= min_score
+
+// ══════════════════════════════════════════════
+// ARMED STATE + ZAMAN ASIMI
+//
+// Mantik:
+//   Adim 1: Ham sinyal → armed = true, sayac = 0
+//   Adim 2: Her barda sayac artar
+//   Adim 3: arm_timeout asiminda sinyal iptal
+//   Adim 4: Teyit barinda giris yapilir
+// ══════════════════════════════════════════════
+
+var bool la      = false
+var bool sa      = false
+var int  la_bars = 0
+var int  sa_bars = 0
+
+// Yeni sinyal gelince arm et
+if long_raw and strategy.position_size == 0
+    la      := true
+    sa      := false
+    la_bars := 0
+    sa_bars := 0
+
+if short_raw and strategy.position_size == 0
+    sa      := true
+    la      := false
+    sa_bars := 0
+    la_bars := 0
+
+// Zaman asimi: arm_timeout bar gecinece sifirla
+if la
+    la_bars += 1
+    if la_bars > arm_timeout
+        la      := false
+        la_bars := 0
+
+if sa
+    sa_bars += 1
+    if sa_bars > arm_timeout
+        sa      := false
+        sa_bars := 0
+
+// Pozisyon acilinca sifirla
+if strategy.position_size != 0
+    la      := false
+    sa      := false
+    la_bars := 0
+    sa_bars := 0
+
+// 1 BAR KAPANIŞ TEYİDİ
+long_ok  = la[1] and close > open and not na(close)
+short_ok = sa[1] and close < open and not na(close)
+
+// ══════════════════════════════════════════════
+// YARDIMCI FONKSİYONLAR
+// ══════════════════════════════════════════════
+
+f_sl_long(ep)  => use_atr_sl ? ep - atr * atr_sl_mult : ep * (1 - sl_pct / 100)
+f_sl_short(ep) => use_atr_sl ? ep + atr * atr_sl_mult : ep * (1 + sl_pct / 100)
+
+// ══════════════════════════════════════════════
+// STRATEJİ GİRİŞ / ÇIKIŞ
+// ══════════════════════════════════════════════
+
+var float sl_p        = na
+var float tp1_p       = na
+var float tp2_p       = na
+var float tp3_p       = na
+var float trail_ticks = 100.0
+
+if long_ok and strategy.position_size == 0
+    strategy.entry("LONG", strategy.long, comment="AL")
+    sl_p        := f_sl_long(close)
+    tp1_p       := close * (1 + tp1_pct / 100)
+    tp2_p       := close * (1 + tp2_pct / 100)
+    tp3_p       := close * (1 + tp3_pct / 100)
+    trail_ticks := math.round(close * trail_pct / 100 / syminfo.mintick)
+    la          := false
+
+if short_ok and strategy.position_size == 0
+    strategy.entry("SHORT", strategy.short, comment="SAT")
+    sl_p        := f_sl_short(close)
+    tp1_p       := close * (1 - tp1_pct / 100)
+    tp2_p       := close * (1 - tp2_pct / 100)
+    tp3_p       := close * (1 - tp3_pct / 100)
+    trail_ticks := math.round(close * trail_pct / 100 / syminfo.mintick)
+    sa          := false
+
+// LONG cikislar
+if strategy.position_size > 0
+    if use_trail
+        strategy.exit("TRAIL_L", from_entry="LONG",
+          stop=sl_p, trail_offset=trail_ticks, comment="Trail")
+    else
+        strategy.exit("SL_L",  from_entry="LONG", stop=sl_p,   comment="SL")
+        strategy.exit("TP1_L", from_entry="LONG", limit=tp1_p, qty_percent=40, comment="TP1")
+        strategy.exit("TP2_L", from_entry="LONG", limit=tp2_p, qty_percent=35, comment="TP2")
+        strategy.exit("TP3_L", from_entry="LONG", limit=tp3_p, qty_percent=25, comment="TP3")
+    if rsi > rsi_ob and bear_pat
+        strategy.close("LONG", comment="RSI+Bear")
+    if ema_bear and close < ema50
+        strategy.close("LONG", comment="Trend Son")
+
+// SHORT cikislar
+if strategy.position_size < 0
+    if use_trail
+        strategy.exit("TRAIL_S", from_entry="SHORT",
+          stop=sl_p, trail_offset=trail_ticks, comment="Trail")
+    else
+        strategy.exit("SL_S",  from_entry="SHORT", stop=sl_p,   comment="SL")
+        strategy.exit("TP1_S", from_entry="SHORT", limit=tp1_p, qty_percent=40, comment="TP1")
+        strategy.exit("TP2_S", from_entry="SHORT", limit=tp2_p, qty_percent=35, comment="TP2")
+        strategy.exit("TP3_S", from_entry="SHORT", limit=tp3_p, qty_percent=25, comment="TP3")
+    if rsi < rsi_os and bull_pat
+        strategy.close("SHORT", comment="RSI+Bull")
+    if ema_bull and close > ema50
+        strategy.close("SHORT", comment="Trend Son")
+
+// ══════════════════════════════════════════════
+// GRAFİK
+// ══════════════════════════════════════════════
+
+plot(ema9,   "EMA9",   color=color.new(color.yellow, 0), linewidth=1)
+plot(ema21,  "EMA21",  color=color.new(color.orange, 0), linewidth=1)
+plot(ema50,  "EMA50",  color=color.new(color.blue,   0), linewidth=2)
+plot(ema200, "EMA200", color=color.new(color.red,    0), linewidth=2)
+
+plot(bb_show ? bb_up  : na, "BB+", color=color.new(color.silver, 60), linewidth=1)
+plot(bb_show ? bb_dn  : na, "BB-", color=color.new(color.silver, 60), linewidth=1)
+plot(bb_show ? bb_mid : na, "BBM", color=color.new(color.silver, 80), linewidth=1, style=plot.style_circles)
+
+bgcolor(bull_trend ? color.new(color.green,  96) : color.new(color.red, 96), title="Trend BG")
+bgcolor(bb_sq      ? color.new(color.yellow, 91) : na,                        title="BB Sikisma")
+
+plotshape(la and not long_ok  and strategy.position_size == 0,
+  title="AL?", location=location.belowbar,
+  style=shape.triangleup,
+  color=color.new(color.lime, 30), size=size.tiny)
+
+plotshape(sa and not short_ok and strategy.position_size == 0,
+  title="SAT?", location=location.abovebar,
+  style=shape.triangledown,
+  color=color.new(color.red, 30), size=size.tiny)
+
+plotshape(long_ok  and strategy.position_size == 0,
+  title="AL",  location=location.belowbar,
+  style=shape.labelup,
+  color=color.new(color.lime, 0),
+  text="AL",   textcolor=color.black, size=size.large)
+
+plotshape(short_ok and strategy.position_size == 0,
+  title="SAT", location=location.abovebar,
+  style=shape.labeldown,
+  color=color.new(color.red, 0),
+  text="SAT",  textcolor=color.white, size=size.large)
+
+plot(strategy.position_size != 0 ? sl_p  : na, "SL",  color=color.red,   linewidth=1, style=plot.style_linebr)
+plot(strategy.position_size != 0 ? tp1_p : na, "TP1", color=color.lime,  linewidth=1, style=plot.style_linebr)
+plot(strategy.position_size != 0 ? tp2_p : na, "TP2", color=color.green, linewidth=1, style=plot.style_linebr)
+plot(strategy.position_size != 0 ? tp3_p : na, "TP3", color=color.green, linewidth=2, style=plot.style_linebr)
+
+// ══════════════════════════════════════════════
+// DASHBOARD — 8 SATIR
+// ══════════════════════════════════════════════
+
+var table db = table.new(position.top_right, 2, 8,
+  bgcolor=color.new(color.black, 25),
+  border_color=color.new(color.gray, 45),
+  border_width=1, frame_color=color.gray, frame_width=1)
+
+if barstate.islast
+    ps  = strategy.position_size > 0 ? "LONG" : strategy.position_size < 0 ? "SHORT" : "BEKLE"
+    pc  = strategy.position_size > 0 ? color.lime : strategy.position_size < 0 ? color.red : color.gray
+    tc  = bull_trend ? color.lime : color.red
+    ts  = bull_trend ? "BOGA" : "AYI"
+    rc  = rsi > rsi_ob ? color.red : rsi < rsi_os ? color.lime : color.orange
+    plc = strategy.openprofit >= 0 ? color.lime : color.red
+    nc  = strategy.netprofit  >= 0 ? color.lime : color.red
+    wr  = strategy.closedtrades > 0 ? math.round(strategy.wintrades / strategy.closedtrades * 100, 1) : 0.0
+    sc  = strategy.position_size > 0 ? long_score : strategy.position_size < 0 ? short_score : math.max(long_score, short_score)
+    scc = sc >= min_score ? color.lime : color.orange
+
+    table.cell(db, 0, 0, syminfo.ticker,   text_color=color.yellow, bgcolor=color.new(color.navy, 15), text_size=size.small)
+    table.cell(db, 1, 0, timeframe.period, text_color=color.white,  bgcolor=color.new(color.navy, 15), text_size=size.small)
+    table.cell(db, 0, 1, "Trend",  text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 1, ts,       text_color=tc,         text_size=size.tiny)
+    table.cell(db, 0, 2, "Poz",    text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 2, ps,       text_color=pc,         text_size=size.tiny)
+    table.cell(db, 0, 3, "RSI",    text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 3, str.tostring(math.round(rsi, 1)), text_color=rc,  text_size=size.tiny)
+    table.cell(db, 0, 4, "Skor",   text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 4, str.tostring(sc) + "/5",          text_color=scc, text_size=size.tiny)
+    table.cell(db, 0, 5, "P&L",    text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 5, str.tostring(math.round(strategy.openprofit, 0)) + "$", text_color=plc, text_size=size.tiny)
+    table.cell(db, 0, 6, "Net",    text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 6, str.tostring(math.round(strategy.netprofit, 0)) + "$",  text_color=nc,  text_size=size.tiny)
+    table.cell(db, 0, 7, "W%|N",   text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 7, str.tostring(wr) + "%|" + str.tostring(strategy.closedtrades), text_color=color.yellow, text_size=size.tiny)
+
+// ══════════════════════════════════════════════
+// ALARMLAR
+// ══════════════════════════════════════════════
+
+alertcondition(long_ok,    "AL - 1Mum Teyit",  "{{ticker}} AL! Fiyat: {{close}}")
+alertcondition(short_ok,   "SAT - 1Mum Teyit", "{{ticker}} SAT! Fiyat: {{close}}")
+alertcondition(la,         "AL Hazirlaniyor",   "{{ticker}} DIP - teyit bekleniyor: {{close}}")
+alertcondition(sa,         "SAT Hazirlaniyor",  "{{ticker}} TEPE - teyit bekleniyor: {{close}}")
+alertcondition(not na(ph), "Yeni TEPE",         "{{ticker}} TEPE: {{close}}")
+alertcondition(not na(pl), "Yeni DIP",          "{{ticker}} DIP: {{close}}")
+alertcondition(bb_sq,      "BB Sikisma",        "{{ticker}} Kirilim bekleniyor!")
