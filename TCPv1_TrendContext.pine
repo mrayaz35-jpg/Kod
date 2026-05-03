@@ -1,0 +1,622 @@
+//@version=6
+indicator(
+  title            = "TrendContext Pro v1 | SSL-BSL-SR-Kanal-Formasyonlar",
+  shorttitle       = "TCPv1",
+  overlay          = true,
+  max_lines_count  = 500,
+  max_labels_count = 500,
+  max_boxes_count  = 100
+)
+
+// ══════════════════════════════════════════════
+// INPUTS
+// ══════════════════════════════════════════════
+
+g_ema = "EMA"
+g_ssl = "SSL / BSL"
+g_ch  = "Trend Kanali"
+g_dc  = "Donchian"
+g_sr  = "Pivot S/R"
+g_pat = "Mum Formasyonlari"
+g_osc = "Osilatörler"
+g_vol = "Hacim / BB"
+g_viz = "Gorsel"
+
+ema1_len = input.int(9,   "EMA 1",       minval=1, group=g_ema)
+ema2_len = input.int(21,  "EMA 2",       minval=1, group=g_ema)
+ema3_len = input.int(50,  "EMA 3",       minval=1, group=g_ema)
+ema4_len = input.int(200, "EMA 4 Trend", minval=1, group=g_ema)
+
+ssl_len  = input.int(10,   "SSL Periyot", minval=3,  group=g_ssl)
+bsl_len  = input.int(20,   "BSL Periyot", minval=3,  group=g_ssl)
+ssl_show = input.bool(true, "SSL/BSL Goster",         group=g_ssl)
+
+ch_len   = input.int(50,    "Kanal Periyot",   minval=10,  group=g_ch)
+ch_dev   = input.float(2.0, "ATR Katsayisi",   minval=0.5, step=0.1, group=g_ch)
+ch_show  = input.bool(true, "Kanal Goster",             group=g_ch)
+
+dc_len   = input.int(20,   "Donchian Periyot", minval=5,   group=g_dc)
+dc_show  = input.bool(true, "Donchian Goster",             group=g_dc)
+
+pv_lb    = input.int(5,    "Pivot Lookback",  minval=3, maxval=20, group=g_sr)
+sr_show  = input.bool(true, "S/R Cizgileri",                        group=g_sr)
+sr_zone  = input.float(0.8, "Yakinlik Zonu %", minval=0.1, step=0.1, group=g_sr)
+
+pat_show  = input.bool(true,  "Formasyon Etiketleri", group=g_pat)
+hmr_rat   = input.float(2.0,  "Cekic Golge Orani",   minval=1.0, step=0.1, group=g_pat)
+doji_pct  = input.float(5.0,  "Doji Govde Esigi %",  minval=1.0, step=0.5, group=g_pat)
+eng_rat   = input.float(1.0,  "Yutan Min Oran",       minval=0.5, step=0.1, group=g_pat)
+
+rsi_len  = input.int(14, "RSI Periyot",    minval=2,  group=g_osc)
+rsi_ob   = input.int(70, "RSI Asiri Alim", minval=60, group=g_osc)
+rsi_os   = input.int(30, "RSI Asiri Satim", maxval=40, group=g_osc)
+macd_f   = input.int(12, "MACD Hizli",     group=g_osc)
+macd_s   = input.int(26, "MACD Yavas",     group=g_osc)
+macd_sg  = input.int(9,  "MACD Sinyal",    group=g_osc)
+stk_k    = input.int(14, "Stoch K",        group=g_osc)
+stk_d    = input.int(3,  "Stoch D",        group=g_osc)
+stk_ob   = input.int(80, "Stoch Asiri Alim", group=g_osc)
+stk_os   = input.int(20, "Stoch Asiri Satim", group=g_osc)
+adx_len  = input.int(14, "ADX Periyot",    group=g_osc)
+adx_th   = input.int(25, "ADX Trend Esigi", minval=10, group=g_osc)
+
+bb_len   = input.int(20,    "BB Periyot",  minval=2,   group=g_vol)
+bb_mult  = input.float(2.0, "BB Katsayi",  minval=0.5, step=0.1, group=g_vol)
+bb_show  = input.bool(true, "BB Goster",                group=g_vol)
+vol_ma   = input.int(20,    "Hacim MA",    minval=5,    group=g_vol)
+
+bg_show   = input.bool(true, "Osilatör Arka Plan", group=g_viz)
+brk_show  = input.bool(true, "Kirilim Etiketleri", group=g_viz)
+dash_show = input.bool(true, "Dashboard",           group=g_viz)
+
+// ══════════════════════════════════════════════
+// GÖSTERGELER
+// ══════════════════════════════════════════════
+
+ema1 = ta.ema(close, ema1_len)
+ema2 = ta.ema(close, ema2_len)
+ema3 = ta.ema(close, ema3_len)
+ema4 = ta.ema(close, ema4_len)
+
+atr  = ta.atr(14)
+rsi  = ta.rsi(close, rsi_len)
+
+[macd_l, sig_l, hist_l] = ta.macd(close, macd_f, macd_s, macd_sg)
+
+sk    = ta.stoch(close, high, low, stk_k)
+sd    = ta.sma(sk, stk_d)
+
+[dip, dim, adxv] = ta.dmi(adx_len, adx_len)
+
+vol_avg  = ta.sma(volume, vol_ma)
+vol_high = volume > vol_avg * 1.5
+
+[bb_mid, bb_up, bb_dn] = ta.bb(close, bb_len, bb_mult)
+bb_w  = bb_up - bb_dn
+bb_sq = bb_w < ta.sma(bb_w, 20) * 0.75
+
+bull_trend = close > ema4
+bear_trend = close < ema4
+ema_bull   = ema1 > ema2 and ema2 > ema3
+ema_bear   = ema1 < ema2 and ema2 < ema3
+macd_bull  = macd_l > sig_l
+macd_bear  = macd_l < sig_l
+macd_x_up  = ta.crossover(macd_l, sig_l)
+macd_x_dn  = ta.crossunder(macd_l, sig_l)
+
+// ══════════════════════════════════════════════
+// SSL / BSL KANALI
+// SSL: SMA(high) ve SMA(low) ile yon tespiti
+// BSL: EMA bazlari
+// ══════════════════════════════════════════════
+
+ssl_h = ta.sma(high, ssl_len)
+ssl_l = ta.sma(low,  ssl_len)
+
+var int ssl_dir = 0
+ssl_dir := close > ssl_h ? 1 : close < ssl_l ? -1 : ssl_dir
+
+ssl_up = ssl_dir > 0 ? ssl_l : ssl_h
+ssl_dn = ssl_dir > 0 ? ssl_h : ssl_l
+bsl    = ta.ema(close, bsl_len)
+
+ssl_bull_flip = ssl_dir > 0 and ssl_dir[1] <= 0
+ssl_bear_flip = ssl_dir < 0 and ssl_dir[1] >= 0
+
+// ══════════════════════════════════════════════
+// TREND KANALI (Lineer Regresyon + ATR)
+// ══════════════════════════════════════════════
+
+lr     = ta.linreg(close, ch_len, 0)
+ch_top = lr + ch_dev * atr
+ch_bot = lr - ch_dev * atr
+
+at_top = close > ch_top
+at_bot = close < ch_bot
+
+ch_bull_break = ta.crossover(close,  ch_top[1])
+ch_bear_break = ta.crossunder(close, ch_bot[1])
+
+// ══════════════════════════════════════════════
+// DONCHİAN KANALI
+// ══════════════════════════════════════════════
+
+dc_up  = ta.highest(high, dc_len)
+dc_dn  = ta.lowest(low,   dc_len)
+dc_mid = (dc_up + dc_dn) / 2
+
+// ══════════════════════════════════════════════
+// PİVOT DEStek / DİRENÇ
+// ══════════════════════════════════════════════
+
+ph = ta.pivothigh(high, pv_lb, pv_lb)
+pl = ta.pivotlow(low,   pv_lb, pv_lb)
+
+var float last_res = na
+var float last_sup = na
+
+if not na(ph)
+    last_res := ph
+if not na(pl)
+    last_sup := pl
+
+near_res = not na(last_res) and math.abs(close - last_res) / last_res * 100 <= sr_zone
+near_sup = not na(last_sup) and math.abs(close - last_sup) / last_sup * 100 <= sr_zone
+
+sr_bull_break = not na(last_res) and ta.crossover(close,  last_res)
+sr_bear_break = not na(last_sup) and ta.crossunder(close, last_sup)
+
+if not na(ph)
+    label.new(bar_index[pv_lb], ph,
+      text="T:" + str.tostring(math.round(ph, 0)),
+      style=label.style_label_down,
+      color=color.new(color.red, 10), textcolor=color.white, size=size.small)
+
+if not na(pl)
+    label.new(bar_index[pv_lb], pl,
+      text="D:" + str.tostring(math.round(pl, 0)),
+      style=label.style_label_up,
+      color=color.new(color.lime, 10), textcolor=color.black, size=size.small)
+
+var line res_ln = na
+var line sup_ln = na
+
+if sr_show
+    if not na(ph)
+        line.delete(res_ln)
+        res_ln := line.new(bar_index[pv_lb], ph, bar_index, ph,
+          extend=extend.right, color=color.new(color.red, 20),
+          style=line.style_dashed, width=2)
+    if not na(pl)
+        line.delete(sup_ln)
+        sup_ln := line.new(bar_index[pv_lb], pl, bar_index, pl,
+          extend=extend.right, color=color.new(color.lime, 20),
+          style=line.style_dashed, width=2)
+
+// ══════════════════════════════════════════════
+// MUM ANATOMİSİ
+// ══════════════════════════════════════════════
+
+o0 = open;    h0 = high;   l0 = low;    c0 = close
+b0 = math.abs(c0 - o0)
+r0 = h0 - l0
+u0 = h0 - math.max(c0, o0)
+d0 = math.min(c0, o0) - l0
+up0 = c0 > o0
+dn0 = c0 < o0
+
+o1 = open[1];  c1 = close[1];  h1 = high[1];  l1 = low[1]
+b1 = math.abs(c1 - o1)
+u1 = h1 - math.max(c1, o1)
+d1 = math.min(c1, o1) - l1
+up1 = c1 > o1
+dn1 = c1 < o1
+
+o2 = open[2];  c2 = close[2]
+b2 = math.abs(c2 - o2)
+up2 = c2 > o2
+dn2 = c2 < o2
+
+o3 = open[3];  c3 = close[3]
+b3 = math.abs(c3 - o3)
+up3 = c3 > o3
+dn3 = c3 < o3
+
+// ══════════════════════════════════════════════
+// BOGA MUMLARI (10 formasyon)
+// ══════════════════════════════════════════════
+
+// Cekic: uzun alt golge, kucuk govde, az ust golge, onceki bar ayi
+cekic    = dn1 and d0 >= b0 * hmr_rat and u0 <= b0 * 0.5 and b0 > 0
+
+// Ters Cekic: uzun ust golge, kucuk govde, onceki bar ayi
+t_cekic  = dn1 and u0 >= b0 * hmr_rat and d0 <= b0 * 0.5 and b0 > 0
+
+// Boga Yutan: onceki ayi mumunu tamamen yutan boga mumu
+b_yutan  = dn1 and up0 and o0 <= c1 and c0 >= o1 and b0 >= b1 * eng_rat
+
+// Boga Haramisi: kucuk boga, buyuk ayi icinde
+b_harami = dn1 and up0 and o0 > c1 and c0 < o1 and b0 < b1 * 0.6
+
+// Delici Mum: gap-down ac, onceki ortasinin ustune kapa
+delici   = dn1 and up0 and o0 < l1 and c0 > (o1 + c1) / 2 and c0 < o1
+
+// Sabah Yildizi (3 mum): ayi - kucuk - boga
+s_yildiz = dn2 and b1 < b2 * 0.5 and up0 and c0 > (o2 + c2) / 2
+
+// Uc Beyaz Asker: art arda 3 yukselis barı
+uc_asker = up0 and up1 and up2 and c0 > c1 and c1 > c2
+
+// Yusufcuk Doji: cok kucuk ust golge, uzun alt golge
+yusuf    = r0 > 0 and b0 <= r0 * (doji_pct / 100) and d0 >= r0 * 0.6 and u0 <= r0 * 0.1
+
+// Uc Ic Yukselis (Three Inside Up)
+uc_icy   = dn2 and b1 < b2 * 0.6 and up1 and up0 and c0 > c2
+
+// Ikiz Dip (Tweezer Bottom): bitisik barlarin dibi esit
+ikiz_dip = math.abs(l0 - l1) <= atr * 0.1 and dn1 and up0
+
+bull_pat = cekic or t_cekic or b_yutan or b_harami or
+           delici or s_yildiz or uc_asker or yusuf or
+           uc_icy or ikiz_dip
+
+// ══════════════════════════════════════════════
+// AYI MUMLARI (10 formasyon)
+// ══════════════════════════════════════════════
+
+// Kayan Yildiz: uzun ust golge, kucuk govde, onceki bar boga
+k_yildiz = up1 and u0 >= b0 * hmr_rat and d0 <= b0 * 0.3 and dn0
+
+// Asilan Adam: uzun alt golge, kucuk govde, boga trendinde
+asilan   = up1 and d0 >= b0 * hmr_rat and u0 <= b0 * 0.5 and dn0
+
+// Ayi Yutan
+a_yutan  = up1 and dn0 and o0 >= c1 and c0 <= o1 and b0 >= b1 * eng_rat
+
+// Ayi Haramisi
+a_harami = up1 and dn0 and o0 < c1 and c0 > o1 and b0 < b1 * 0.6
+
+// Karabulut Ortusu: gap-up ac, onceki ortasinin altina kapa
+k_ortu   = up1 and dn0 and o0 > h1 and c0 < (o1 + c1) / 2 and c0 > o1
+
+// Aksam Yildizi (3 mum): boga - kucuk - ayi
+ak_yild  = up2 and b1 < b2 * 0.5 and dn0 and c0 < (o2 + c2) / 2
+
+// Uc Siyah Karga: art arda 3 dusus
+uc_karga = dn0 and dn1 and dn2 and c0 < c1 and c1 < c2
+
+// Mezar Tasi Doji: uzun ust golge, cok kucuk alt golge
+mezar    = r0 > 0 and b0 <= r0 * (doji_pct / 100) and u0 >= r0 * 0.6 and d0 <= r0 * 0.1
+
+// Uc Ic Dusus (Three Inside Down)
+uc_icd   = up2 and b1 < b2 * 0.6 and dn1 and dn0 and c0 < c2
+
+// Ikiz Tepe (Tweezer Top)
+ikiz_tp  = math.abs(h0 - h1) <= atr * 0.1 and up1 and dn0
+
+bear_pat = k_yildiz or asilan or a_yutan or a_harami or
+           k_ortu or ak_yild or uc_karga or mezar or
+           uc_icd or ikiz_tp
+
+// ══════════════════════════════════════════════
+// TREND DONUS MUMLARI (5 formasyon)
+// ══════════════════════════════════════════════
+
+// Doji: her iki yon golge var, govde cok kucuk
+doji    = r0 > 0 and b0 <= r0 * (doji_pct / 100) and u0 > r0 * 0.1 and d0 > r0 * 0.1
+
+// Uzun Bacakli Doji
+uzun_dj = doji and u0 >= r0 * 0.3 and d0 >= r0 * 0.3
+
+// Topac (Spinning Top): kucuk govde, her iki yonde golge
+topac   = r0 > 0 and b0 <= r0 * 0.3 and u0 >= r0 * 0.2 and d0 >= r0 * 0.2 and not doji
+
+// Boga Marubozu: golgesiz yukselen boga
+b_marubozu = up0 and u0 <= b0 * 0.05 and d0 <= b0 * 0.05 and b0 >= atr * 0.7
+
+// Ayi Marubozu: golgesiz dusen ayi
+a_marubozu = dn0 and u0 <= b0 * 0.05 and d0 <= b0 * 0.05 and b0 >= atr * 0.7
+
+// ══════════════════════════════════════════════
+// MUM ETİKETLERİ
+// ══════════════════════════════════════════════
+
+if pat_show
+    // BOGA ETİKETLERİ
+    if cekic
+        label.new(bar_index, l0 - atr * 0.4, "Ck",
+          style=label.style_label_up, color=color.new(color.teal, 15),
+          textcolor=color.white, size=size.small)
+    if t_cekic
+        label.new(bar_index, l0 - atr * 0.4, "TCk",
+          style=label.style_label_up, color=color.new(color.teal, 25),
+          textcolor=color.white, size=size.tiny)
+    if b_yutan
+        label.new(bar_index, l0 - atr * 0.4, "BY",
+          style=label.style_label_up, color=color.new(color.green, 10),
+          textcolor=color.white, size=size.small)
+    if b_harami
+        label.new(bar_index, l0 - atr * 0.4, "BH",
+          style=label.style_label_up, color=color.new(color.green, 25),
+          textcolor=color.white, size=size.tiny)
+    if delici
+        label.new(bar_index, l0 - atr * 0.4, "DL",
+          style=label.style_label_up, color=color.new(color.teal, 10),
+          textcolor=color.white, size=size.tiny)
+    if s_yildiz
+        label.new(bar_index, l0 - atr * 0.6, "SbY",
+          style=label.style_label_up, color=color.new(color.lime, 10),
+          textcolor=color.black, size=size.small)
+    if uc_asker
+        label.new(bar_index, l0 - atr * 0.6, "3A",
+          style=label.style_label_up, color=color.new(color.green, 10),
+          textcolor=color.white, size=size.small)
+    if yusuf
+        label.new(bar_index, l0 - atr * 0.4, "YD",
+          style=label.style_label_up, color=color.new(color.aqua, 15),
+          textcolor=color.white, size=size.tiny)
+    if uc_icy
+        label.new(bar_index, l0 - atr * 0.4, "3IY",
+          style=label.style_label_up, color=color.new(color.lime, 20),
+          textcolor=color.black, size=size.tiny)
+    if ikiz_dip
+        label.new(bar_index, l0 - atr * 0.4, "ID",
+          style=label.style_label_up, color=color.new(color.teal, 30),
+          textcolor=color.white, size=size.tiny)
+    if b_marubozu
+        label.new(bar_index, l0 - atr * 0.3, "BM",
+          style=label.style_label_up, color=color.new(color.green, 5),
+          textcolor=color.white, size=size.tiny)
+
+    // AYI ETİKETLERİ
+    if k_yildiz
+        label.new(bar_index, h0 + atr * 0.4, "KY",
+          style=label.style_label_down, color=color.new(color.orange, 10),
+          textcolor=color.white, size=size.small)
+    if asilan
+        label.new(bar_index, h0 + atr * 0.4, "AA",
+          style=label.style_label_down, color=color.new(color.orange, 25),
+          textcolor=color.white, size=size.tiny)
+    if a_yutan
+        label.new(bar_index, h0 + atr * 0.4, "AY",
+          style=label.style_label_down, color=color.new(color.red, 10),
+          textcolor=color.white, size=size.small)
+    if a_harami
+        label.new(bar_index, h0 + atr * 0.4, "AH",
+          style=label.style_label_down, color=color.new(color.red, 25),
+          textcolor=color.white, size=size.tiny)
+    if k_ortu
+        label.new(bar_index, h0 + atr * 0.4, "KO",
+          style=label.style_label_down, color=color.new(color.maroon, 15),
+          textcolor=color.white, size=size.tiny)
+    if ak_yild
+        label.new(bar_index, h0 + atr * 0.6, "AkY",
+          style=label.style_label_down, color=color.new(color.red, 10),
+          textcolor=color.white, size=size.small)
+    if uc_karga
+        label.new(bar_index, h0 + atr * 0.6, "3K",
+          style=label.style_label_down, color=color.new(color.red, 10),
+          textcolor=color.white, size=size.small)
+    if mezar
+        label.new(bar_index, h0 + atr * 0.4, "MzD",
+          style=label.style_label_down, color=color.new(color.maroon, 15),
+          textcolor=color.white, size=size.tiny)
+    if uc_icd
+        label.new(bar_index, h0 + atr * 0.4, "3ID",
+          style=label.style_label_down, color=color.new(color.red, 20),
+          textcolor=color.white, size=size.tiny)
+    if ikiz_tp
+        label.new(bar_index, h0 + atr * 0.4, "IT",
+          style=label.style_label_down, color=color.new(color.orange, 30),
+          textcolor=color.white, size=size.tiny)
+    if a_marubozu
+        label.new(bar_index, h0 + atr * 0.3, "AM",
+          style=label.style_label_down, color=color.new(color.red, 5),
+          textcolor=color.white, size=size.tiny)
+
+    // DONUS ETİKETLERİ
+    if uzun_dj
+        label.new(bar_index, (h0 + l0) / 2, "UDJ",
+          style=label.style_label_center, color=color.new(color.gray, 20),
+          textcolor=color.white, size=size.tiny)
+    else if doji
+        label.new(bar_index, (h0 + l0) / 2, "DJ",
+          style=label.style_label_center, color=color.new(color.gray, 40),
+          textcolor=color.white, size=size.tiny)
+    if topac
+        label.new(bar_index, (h0 + l0) / 2, "Tp",
+          style=label.style_label_center, color=color.new(color.silver, 40),
+          textcolor=color.black, size=size.tiny)
+
+// ══════════════════════════════════════════════
+// TREND KIRILIM SİNYALLERİ
+// ══════════════════════════════════════════════
+
+strong_bull = (sr_bull_break or ssl_bull_flip) and macd_bull and bull_trend and vol_high
+strong_bear = (sr_bear_break or ssl_bear_flip) and macd_bear and bear_trend and vol_high
+
+if brk_show
+    if strong_bull
+        label.new(bar_index, l0 - atr * 1.2, "KIRILIM UP",
+          style=label.style_label_up, color=color.new(color.lime, 0),
+          textcolor=color.black, size=size.normal)
+    if strong_bear
+        label.new(bar_index, h0 + atr * 1.2, "KIRILIM DN",
+          style=label.style_label_down, color=color.new(color.red, 0),
+          textcolor=color.white, size=size.normal)
+    if ssl_bull_flip and not strong_bull
+        label.new(bar_index, l0 - atr * 0.6, "SSL+",
+          style=label.style_label_up, color=color.new(color.aqua, 20),
+          textcolor=color.white, size=size.tiny)
+    if ssl_bear_flip and not strong_bear
+        label.new(bar_index, h0 + atr * 0.6, "SSL-",
+          style=label.style_label_down, color=color.new(color.orange, 20),
+          textcolor=color.white, size=size.tiny)
+    if macd_x_up
+        label.new(bar_index, l0 - atr * 0.3, "M+",
+          style=label.style_label_up, color=color.new(color.blue, 20),
+          textcolor=color.white, size=size.tiny)
+    if macd_x_dn
+        label.new(bar_index, h0 + atr * 0.3, "M-",
+          style=label.style_label_down, color=color.new(color.purple, 20),
+          textcolor=color.white, size=size.tiny)
+    if sr_bull_break and vol_high
+        label.new(bar_index, l0 - atr * 0.8, "DIR+",
+          style=label.style_label_up, color=color.new(color.yellow, 10),
+          textcolor=color.black, size=size.tiny)
+    if sr_bear_break and vol_high
+        label.new(bar_index, h0 + atr * 0.8, "DST-",
+          style=label.style_label_down, color=color.new(color.yellow, 10),
+          textcolor=color.black, size=size.tiny)
+
+// ══════════════════════════════════════════════
+// EMA RENK KODLAMASI (trend hizalamasina gore)
+// ══════════════════════════════════════════════
+
+e1c = ema_bull ? color.new(color.yellow, 0) : ema_bear ? color.new(color.yellow, 60) : color.new(color.yellow, 30)
+e2c = ema_bull ? color.new(color.orange, 0) : ema_bear ? color.new(color.orange, 60) : color.new(color.orange, 30)
+
+plot(ema1, "EMA1",  color=e1c, linewidth=1)
+plot(ema2, "EMA2",  color=e2c, linewidth=1)
+plot(ema3, "EMA3",  color=color.new(color.blue,  0), linewidth=2)
+plot(ema4, "EMA4",  color=color.new(color.red,   0), linewidth=2)
+
+// ══════════════════════════════════════════════
+// SSL / BSL PLOTLAR
+// ══════════════════════════════════════════════
+
+ssl_c   = ssl_dir > 0 ? color.new(color.lime, 0) : color.new(color.red, 0)
+bsl_c   = close > bsl ? color.new(color.aqua, 30) : color.new(color.orange, 30)
+
+p_ssl_u = plot(ssl_show ? ssl_up : na, "SSL Up", color=ssl_c, linewidth=2)
+p_ssl_d = plot(ssl_show ? ssl_dn : na, "SSL Dn", color=ssl_c, linewidth=2, style=plot.style_linebr)
+plot(ssl_show ? bsl : na, "BSL", color=bsl_c, linewidth=1, style=plot.style_circles)
+fill(p_ssl_u, p_ssl_d, color=color.new(ssl_c, 90))
+
+// ══════════════════════════════════════════════
+// TREND KANALI PLOTLAR
+// ══════════════════════════════════════════════
+
+p_cht = plot(ch_show ? ch_top : na, "K.Ust",  color=color.new(color.purple, 30), linewidth=1)
+plot(ch_show ? lr    : na, "K.Orta", color=color.new(color.purple, 60), linewidth=1, style=plot.style_circles)
+p_chb = plot(ch_show ? ch_bot : na, "K.Alt",  color=color.new(color.purple, 30), linewidth=1)
+fill(p_cht, p_chb, color=color.new(color.purple, 93))
+
+// ══════════════════════════════════════════════
+// DONCHİAN PLOTLAR
+// ══════════════════════════════════════════════
+
+p_dcu = plot(dc_show ? dc_up  : na, "DC Up",  color=color.new(color.fuchsia, 50), linewidth=1)
+p_dcd = plot(dc_show ? dc_dn  : na, "DC Dn",  color=color.new(color.fuchsia, 50), linewidth=1)
+plot(dc_show ? dc_mid : na, "DC Mid", color=color.new(color.fuchsia, 70), linewidth=1, style=plot.style_linebr)
+fill(p_dcu, p_dcd, color=color.new(color.fuchsia, 96))
+
+// ══════════════════════════════════════════════
+// BOLLINGER PLOTLAR
+// ══════════════════════════════════════════════
+
+p_bbu = plot(bb_show ? bb_up  : na, "BB+", color=color.new(color.silver, 55), linewidth=1)
+p_bbd = plot(bb_show ? bb_dn  : na, "BB-", color=color.new(color.silver, 55), linewidth=1)
+plot(bb_show ? bb_mid : na, "BBM", color=color.new(color.silver, 75), linewidth=1, style=plot.style_circles)
+fill(p_bbu, p_bbd, color=color.new(color.silver, 96))
+
+// ══════════════════════════════════════════════
+// OSİLATÖR BAĞLAMI — ARKA PLAN RENKLERİ
+// ══════════════════════════════════════════════
+
+rsi_ob_bg = bg_show and rsi > rsi_ob
+rsi_os_bg = bg_show and rsi < rsi_os
+stk_ob_bg = bg_show and sk > stk_ob and sd > stk_ob
+stk_os_bg = bg_show and sk < stk_os and sd < stk_os
+adx_bg    = bg_show and adxv > adx_th
+bb_sq_bg  = bg_show and bb_sq
+
+bgcolor(rsi_ob_bg and stk_ob_bg    ? color.new(color.red,    85) : na, title="RSI+Stoch OB")
+bgcolor(rsi_os_bg and stk_os_bg    ? color.new(color.green,  85) : na, title="RSI+Stoch OS")
+bgcolor(rsi_ob_bg and not stk_ob_bg ? color.new(color.red,   93) : na, title="RSI OB")
+bgcolor(rsi_os_bg and not stk_os_bg ? color.new(color.green, 93) : na, title="RSI OS")
+bgcolor(adx_bg and bull_trend      ? color.new(color.teal,   95) : na, title="ADX Boga")
+bgcolor(adx_bg and bear_trend      ? color.new(color.orange, 95) : na, title="ADX Ayi")
+bgcolor(bb_sq_bg                   ? color.new(color.yellow, 92) : na, title="BB Sikisma")
+bgcolor(bull_trend ? color.new(color.green, 97) : color.new(color.red, 97), title="Trend BG")
+
+// ══════════════════════════════════════════════
+// DASHBOARD (10 satir)
+// ══════════════════════════════════════════════
+
+var table db = table.new(position.top_right, 2, 11,
+  bgcolor=color.new(color.black, 20),
+  border_color=color.new(color.gray, 40),
+  border_width=1, frame_color=color.gray, frame_width=1)
+
+if barstate.islast and dash_show
+    // Hesaplamalar
+    t_str   = bull_trend ? "BOGA" : "AYI"
+    t_col   = bull_trend ? color.lime : color.red
+    ea_str  = ema_bull ? "9>21>50" : ema_bear ? "9<21<50" : "KARISIK"
+    ea_col  = ema_bull ? color.lime : ema_bear ? color.red : color.orange
+    ssl_str = ssl_dir > 0 ? "YUKARI" : "ASAGI"
+    ssl_c2  = ssl_dir > 0 ? color.lime : color.red
+    rsi_str = str.tostring(math.round(rsi, 1))
+    rsi_col = rsi > rsi_ob ? color.red : rsi < rsi_os ? color.lime : color.orange
+    mc_str  = macd_x_up ? "CROSS +" : macd_x_dn ? "CROSS -" : macd_bull ? "POZ" : "NEG"
+    mc_col  = macd_bull ? color.lime : color.red
+    sk_str  = str.tostring(math.round(sk, 1))
+    sk_col  = sk > stk_ob ? color.red : sk < stk_os ? color.lime : color.orange
+    adx_str = str.tostring(math.round(adxv, 1)) + (adxv > adx_th ? " GUC" : " ZYF")
+    adx_col = adxv > adx_th ? color.yellow : color.gray
+    di_str  = dip > dim ? "DI+ BOGA" : "DI- AYI"
+    di_col  = dip > dim ? color.lime : color.red
+    vol_str = vol_high ? "YUKSEK" : "NORMAL"
+    vol_col = vol_high ? color.yellow : color.gray
+    bb_str  = bb_sq ? "SIKISMA" : "NORMAL"
+    bb_col  = bb_sq ? color.yellow : color.gray
+    sr_str  = near_res ? "DIRENC" : near_sup ? "DESTEK" : "-"
+    sr_col  = near_res ? color.red : near_sup ? color.lime : color.gray
+
+    // Balik skoru (kac osilatör boga/ayi)
+    bull_sc = (bull_trend ? 1 : 0) + (ema_bull ? 1 : 0) + (ssl_dir > 0 ? 1 : 0) +
+              (macd_bull  ? 1 : 0) + (rsi < 55  ? 1 : 0) + (dip > dim  ? 1 : 0)
+    bear_sc = (bear_trend ? 1 : 0) + (ema_bear  ? 1 : 0) + (ssl_dir < 0 ? 1 : 0) +
+              (macd_bear  ? 1 : 0) + (rsi > 45  ? 1 : 0) + (dim > dip  ? 1 : 0)
+    sc_str  = "B:" + str.tostring(bull_sc) + " | A:" + str.tostring(bear_sc)
+    sc_col  = bull_sc > bear_sc ? color.lime : bull_sc < bear_sc ? color.red : color.orange
+
+    table.cell(db, 0, 0,  syminfo.ticker,   text_color=color.yellow, bgcolor=color.new(color.navy, 10), text_size=size.small)
+    table.cell(db, 1, 0,  timeframe.period, text_color=color.white,  bgcolor=color.new(color.navy, 10), text_size=size.small)
+    table.cell(db, 0, 1,  "Trend",   text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 1,  t_str,     text_color=t_col,      text_size=size.tiny)
+    table.cell(db, 0, 2,  "EMA",     text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 2,  ea_str,    text_color=ea_col,     text_size=size.tiny)
+    table.cell(db, 0, 3,  "SSL",     text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 3,  ssl_str,   text_color=ssl_c2,     text_size=size.tiny)
+    table.cell(db, 0, 4,  "RSI",     text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 4,  rsi_str,   text_color=rsi_col,    text_size=size.tiny)
+    table.cell(db, 0, 5,  "MACD",    text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 5,  mc_str,    text_color=mc_col,     text_size=size.tiny)
+    table.cell(db, 0, 6,  "Stoch K", text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 6,  sk_str,    text_color=sk_col,     text_size=size.tiny)
+    table.cell(db, 0, 7,  "ADX/DMI", text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 7,  adx_str + " | " + di_str, text_color=adx_col, text_size=size.tiny)
+    table.cell(db, 0, 8,  "Vol|BB",  text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 8,  vol_str + " | " + bb_str, text_color=vol_col, text_size=size.tiny)
+    table.cell(db, 0, 9,  "S/R Zon", text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 9,  sr_str,    text_color=sr_col,     text_size=size.tiny)
+    table.cell(db, 0, 10, "Skor",    text_color=color.gray, text_size=size.tiny)
+    table.cell(db, 1, 10, sc_str,    text_color=sc_col,     text_size=size.tiny)
+
+// ══════════════════════════════════════════════
+// ALARMLAR
+// ══════════════════════════════════════════════
+
+alertcondition(strong_bull,    "Guclu Boga Kirilimi",   "{{ticker}} KIRILIM + Fiyat: {{close}}")
+alertcondition(strong_bear,    "Guclu Ayi Kirilimi",    "{{ticker}} KIRILIM - Fiyat: {{close}}")
+alertcondition(ssl_bull_flip,  "SSL Boga Donusu",       "{{ticker}} SSL+ {{close}}")
+alertcondition(ssl_bear_flip,  "SSL Ayi Donusu",        "{{ticker}} SSL- {{close}}")
+alertcondition(bull_pat,       "Boga Formasyonu",        "{{ticker}} Boga Mumu: {{close}}")
+alertcondition(bear_pat,       "Ayi Formasyonu",         "{{ticker}} Ayi Mumu: {{close}}")
+alertcondition(sr_bull_break,  "Direnc Kirildi",         "{{ticker}} Direnc kiridi: {{close}}")
+alertcondition(sr_bear_break,  "Destek Kirildi",         "{{ticker}} Destek kirildi: {{close}}")
+alertcondition(macd_x_up,      "MACD Boga Kesisimi",    "{{ticker}} MACD+ {{close}}")
+alertcondition(macd_x_dn,      "MACD Ayi Kesisimi",     "{{ticker}} MACD- {{close}}")
+alertcondition(bb_sq,          "BB Sikisma",             "{{ticker}} BB Sikisma - Kirilim Bekle!")
