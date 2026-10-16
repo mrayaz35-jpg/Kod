@@ -270,7 +270,7 @@
         const a = r.atr, ci = c[n - 1].c, stI = ci - EXIT.ks * a, e = c1h[n - 1].c;
         const g = side === 1 && opts.guard !== false ? guard(c, n - 1, EXIT.ks * a / ci * 100, opts.btc7 ? opts.btc7(c[n - 1].t) : null) : null;
         if (g) { blocked.push({ side, setups: m, reason: g }); continue; }
-        out.push({ side, setups: m, engines: engineState(r), entry: e, stop: side === 1 ? stI : 1 / stI, riskPct: EXIT.ks * a / ci * 100, trailPct: EXIT.kt * a / ci * 100, strength: m.length, t: c1h[n - 1].t });
+        out.push({ side, quality: side === 1 && root.PA && root.PA.quality ? root.PA.quality(c1h, n - 1) : null, setups: m, engines: engineState(r), entry: e, stop: side === 1 ? stI : 1 / stI, riskPct: EXIT.ks * a / ci * 100, trailPct: EXIT.kt * a / ci * 100, strength: m.length, t: c1h[n - 1].t });
       }
     }
     const hist = opts.history ? simulate(c1h, { ...opts, prep: P }) : null;

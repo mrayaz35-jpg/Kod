@@ -1,0 +1,88 @@
+//@version=5
+// ─────────────────────────────────────────────────────────────────────────────
+// AYAZ PA · Trend Kırılımı + Kırılım Kalitesi  (robotun TradingView kopyası)
+// Grafik: 1 SAAT (1h). Ör: BINANCE:SOLUSDT, BINANCE:AVAXTRY
+// Kural (robotla birebir):
+//  • AL: 1s kapanış, önceki 480 mumun (20 gün) en yükseğini kırar
+//        + BTC günlük kapanışı 50 günlük ortalamanın üstünde (önceki gün)
+//        + giriş koruması: stop %1–%6 arası, son 24 saatte <%10, son 7 günde <%40 yükseliş
+//        + kırılım kalitesi ≥ seçilen eşik (A=2, B=1):
+//            hacim ≥ 20 günlük ortalamanın 3 katı  (+1)
+//            son 5 günün mum boyu / önceki 25 günün < 0.9 (sıkışma) (+1)
+//  • Giriş: sinyal mumundan sonraki mumun açılışı
+//  • Stop: sinyal kapanışı − 4 × ATR(14)
+//  • Çıkış: iz süren stop = girişten beri en yüksek − 12 × ATR(14). Sabit hedef yok.
+// Komisyon %0.1, kayma 2 tick. Pozisyon büyüklüğü: işlem başı risk % (stopa göre), en fazla sermayenin tamamı.
+// Yatırım tavsiyesi değildir.
+// ─────────────────────────────────────────────────────────────────────────────
+strategy("Ayaz PA · Trend Kırılımı + Kalite", overlay = true, initial_capital = 10000,
+     commission_type = strategy.commission.percent, commission_value = 0.1, slippage = 2,
+     pyramiding = 0, calc_on_every_tick = false, process_orders_on_close = false)
+
+// ── Ayarlar
+grpK = "Kural"
+lenH     = input.int(480, "Kırılım penceresi (1s mum; 480 = 20 gün)", minval = 24, group = grpK)
+stopAtr  = input.float(4.0, "İlk stop (× ATR)", step = 0.5, group = grpK)
+trailAtr = input.float(12.0, "İz süren stop (× ATR)", step = 0.5, group = grpK)
+minQ     = input.int(1, "En düşük kırılım kalitesi (0=hepsi, 1=B, 2=A)", minval = 0, maxval = 2, group = grpK)
+grpF = "Filtreler"
+useBtc   = input.bool(true, "BTC rejim filtresi (BTC > 50 günlük ort.)", group = grpF)
+btcSym   = input.symbol("BINANCE:BTCUSDT", "BTC sembolü", group = grpF)
+useGuard = input.bool(true, "Giriş koruması (uzak/yakın stop, aşırı yükseliş)", group = grpF)
+grpR = "Risk"
+riskPct  = input.float(1.0, "İşlem başı risk (% sermaye)", step = 0.25, group = grpR)
+startT   = input.time(timestamp("2024-01-01 00:00 +0000"), "Test başlangıcı", group = grpR)
+
+// ── Göstergeler (geleceği görmeden)
+a      = ta.atr(14)                                   // Wilder ATR (robotla aynı)
+hh     = ta.highest(high, lenH)[1]                    // önceki 480 mumun en yükseği
+btcOk  = request.security(btcSym, "D", close[1] > ta.sma(close, 50)[1], lookahead = barmerge.lookahead_on)   // önceki tamamlanmış gün
+volAvg = ta.sma(volume, 480)[1]
+rv     = volAvg > 0 ? volume / volAvg : 0
+rng    = high - low
+s840   = math.sum(rng, 840)[1]
+s120   = math.sum(rng, 120)[1]
+sq     = (s840 - s120) > 0 ? (s120 / 120) / ((s840 - s120) / 720) : 1.0
+qual   = (rv >= 3 ? 1 : 0) + (sq < 0.9 ? 1 : 0)
+
+stopSig  = close - stopAtr * a
+riskSig  = (close - stopSig) / close * 100
+up24     = close / close[24] - 1
+up168    = close / close[168] - 1
+guardOk  = not useGuard or (riskSig >= 1 and riskSig < 6 and up24 < 0.10 and up168 < 0.40)
+
+brk      = close > hh
+longSig  = brk and (not useBtc or btcOk) and guardOk and qual >= minQ and time >= startT and strategy.position_size == 0
+
+// ── Pozisyon büyüklüğü: risk / stop mesafesi, sermayeyi aşmaz
+qtyRisk  = strategy.equity * riskPct / 100 / (close - stopSig)
+qtyMax   = strategy.equity / close
+qty      = math.min(qtyRisk, qtyMax)
+
+// ── İz süren stop durumu
+var float best  = na
+var float stopL = na
+if longSig
+    strategy.entry("AL", strategy.long, qty = qty, comment = "AL q" + str.tostring(qual))
+    stopL := stopSig
+    best  := na
+    strategy.exit("STOP", "AL", stop = stopL, comment_loss = "Stop", comment_profit = "İz stop")
+    alert("AYAZ PA AL " + syminfo.ticker + " | giriş ~" + str.tostring(close, format.mintick) + " | STOP " + str.tostring(stopL, format.mintick) + " | kalite " + str.tostring(qual), alert.freq_once_per_bar_close)
+else if strategy.position_size > 0
+    best  := na(best) ? math.max(strategy.position_avg_price, high) : math.max(best, high)
+    stopL := math.max(stopL, best - trailAtr * a)
+    strategy.exit("STOP", "AL", stop = stopL, comment_loss = "Stop", comment_profit = "İz stop")
+else
+    best  := na
+    stopL := na
+
+// Stop yükseldiğinde bildirim (telefonda alarm: "Alert() fonksiyon çağrıları")
+stopRaised = strategy.position_size > 0 and strategy.position_size[1] > 0 and stopL > nz(stopL[1])
+if stopRaised
+    alert("AYAZ PA STOPU YÜKSELT " + syminfo.ticker + " → " + str.tostring(stopL, format.mintick), alert.freq_once_per_bar_close)
+
+// ── Grafik
+plot(hh, "20 günlük zirve", color = color.new(color.orange, 30), style = plot.style_stepline)
+plot(strategy.position_size > 0 ? stopL : na, "Stop / iz süren stop", color = color.red, style = plot.style_linebr, linewidth = 2)
+plotshape(longSig, "AL", shape.triangleup, location.belowbar, color = qual >= 2 ? color.green : color.teal, size = size.small, text = "AL")
+alertcondition(longSig, "Ayaz PA AL sinyali", "AYAZ PA AL {{ticker}} fiyat {{close}}")

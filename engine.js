@@ -930,6 +930,16 @@
     return best ? best[1] : 0;
   }
   // c1h: kapanmış 1s mumlar (artan). opts: { btcD1, d1 (seviye yaklaşımı için), fee, slip, N, atrStop, trail }
+  // KIRILIM KALİTESİ (teknik analizde kırılım teyidi): 1) kırılım mumunun hacmi son 20 günün (480 mum) ortalamasının ≥3 katı,
+  // 2) kırılımdan önce volatilite daralması (son 5 günün ortalama mum boyu / önceki 25 günün < 0.9). Puan 0-2.
+  // 18 coin 2020-2026: kalite 2 = +1.09R (7 yılın 7'sinde artı), 1 = +0.50R, 0 = +0.26R. TRY ana coinler 2025-26: 2 = +0.76R, 1 = +0.37R, 0 = −0.14R.
+  function quality(c, i) {
+    if (i < 840) return null;
+    let v = 0; for (let k = i - 480; k < i; k++) v += c[k].v; v /= 480;
+    let a5 = 0, a30 = 0; for (let k = i - 120; k < i; k++) a5 += c[k].h - c[k].l; for (let k = i - 840; k < i - 120; k++) a30 += c[k].h - c[k].l;
+    const rv = v ? c[i].v / v : 0, sq = a30 ? (a5 / 120) / (a30 / 720) : 1;
+    return { q: (rv >= 3 ? 1 : 0) + (sq < 0.9 ? 1 : 0), rv, sq };
+  }
   // Giriş koruması (engines.js GUARD ile aynı eşikler; 303 TRY + 18 coin testlerinde kötü çıkan girişler)
   function trendGuard(c, i, riskPct) {
     if (riskPct < 1) return `stop çok yakın (%${riskPct.toFixed(2)}): hareketsiz parite`;
@@ -996,9 +1006,9 @@
     const entry = decision === 'AL' ? last.c : level;
     const stop = entry != null ? entry - o.atrStop * a : null;
     const closed = trades.filter(t => !t.open), sumR = closed.reduce((s, t) => s + t.R, 0);
-    return { decision, why, level, brk, entry, stop, trailAtr: o.trail, atr: a, riskPct: entry ? (entry - stop) / entry * 100 : null, btc: reg ? regNow : null,
+    return { decision, why, level, brk, quality: decision === 'AL' ? quality(c1h, n - 1) : null, entry, stop, trailAtr: o.trail, atr: a, riskPct: entry ? (entry - stop) / entry * 100 : null, btc: reg ? regNow : null,
       open: openT, trades, stats: { n: closed.length, win: closed.filter(t => t.R > 0).length, sumR, avgR: closed.length ? sumR / closed.length : 0 }, params: o, hasHistory: hh[n - 1] != null, approx };
   }
 
-  root.PA = { setFx: v => { FX = v > 0 ? v : 1; }, getFx: () => FX, trend, TREND, btcRegimeMap, _dbg: { buildCandidates, scoreCandidate, stage1, legRetr, h2Count, sessionInfo }, ema, sma, atr, rsi, pivots, structure, analyzeTF, phase, plan, analyze, analyzeMTF, decide, dayLevels, aggregate, fmtP, PHASES };
+  root.PA = { quality, setFx: v => { FX = v > 0 ? v : 1; }, getFx: () => FX, trend, TREND, btcRegimeMap, _dbg: { buildCandidates, scoreCandidate, stage1, legRetr, h2Count, sessionInfo }, ema, sma, atr, rsi, pivots, structure, analyzeTF, phase, plan, analyze, analyzeMTF, decide, dayLevels, aggregate, fmtP, PHASES };
 })(typeof window !== 'undefined' ? window : globalThis);
