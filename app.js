@@ -290,7 +290,7 @@
     return { sym: u.sym, base: u.base, quote: u.quote || S.market, market: u.market || (isBist(u.sym) ? 'BIST' : 'USDT'), last, chg: u.chg, qv: u.qv,
       decision: tr.decision, status: T_STATUS[tr.decision], why: tr.why, level: tr.level, entry: tr.decision === 'POZİSYONDA' ? tr.open.e : tr.entry, stop: tr.decision === 'POZİSYONDA' ? tr.open.stop : tr.stop,
       riskPct: tr.riskPct, dist, openR, btc: tr.btc, hist: tr.stats, td: !!exact, model: 'trend',
-      atr: tr.atr || null, trailD: tr.atr ? tr.atr * PA.TREND.trail : null, sigT: tr.open ? tr.open.sigT : null, stop0: tr.open ? tr.open.stop0 : tr.stop,
+      brk: tr.brk ?? null, atr: tr.atr || null, trailD: tr.atr ? tr.atr * PA.TREND.trail : null, sigT: tr.open ? tr.open.sigT : null, stop0: tr.open ? tr.open.stop0 : tr.stop,
       score: T_RANK[tr.decision] + (tr.decision === 'POZİSYONDA' ? Math.min(99, (openR || 0) * 10) : dist != null ? Math.max(0, 99 - dist * 10) : 0),
       phaseLabel: tr.why };
   }
@@ -466,7 +466,8 @@
   }
   const T_TONE = { 'AL': 'good', 'SAT (short)': 'warn', 'POZİSYONDA': 'good', 'KIRILIM YAKIN': 'warn', 'BEKLE': 'neutral', 'UZAK DUR': 'bad' };
   // ANA COİNLER: piyasa değeri büyük, en az 1 yıllık geçmişi ve derin tahtası olan coinler. Backtest (303 TRY paritesi, gerçek spread,
-  // 5 pozisyon / %1 risk portföy simülasyonu, 2025-10 → 2026-10): tüm paritelerde −%49, yalnız ana coinlerde +%61 (en büyük düşüş %30).
+  // 5 pozisyon / %1 risk portföy simülasyonu, 2025-10 → 2026-10): tüm paritelerde −%49…−%89; ana coinlerde sinyal başına +0.17R (PF 1.22),
+  // portföy sonucu kurallara duyarlı (−%4…+%60). Trend modeli ana coinlerde +%18, en büyük düşüş %9.
   // 18 büyük coinde 2020-2026 testi de aynı yönde. Liste piyasa değerine göre seçildi, backtest sonucuna göre değil.
   const MAJORS = new Set(['BTC', 'ETH', 'SOL', 'XRP', 'BNB', 'ADA', 'DOGE', 'AVAX', 'LINK', 'DOT', 'LTC', 'TRX', 'NEAR', 'SUI', 'APT', 'ARB', 'OP', 'BCH', 'ATOM', 'FIL', 'UNI', 'AAVE', 'INJ', 'TIA', 'SEI', 'HBAR', 'ETC', 'PEPE', 'SHIB', 'WLD']);
   const isMajor = r => MAJORS.has(r.base) || isBist(r.sym || '');
@@ -498,13 +499,15 @@
     for (const r of results) {
       if (r.last == null || r.stop == null) continue;
       const short = r.decision === 'SAT (short)';
+      if (ART && !r.td) continue;   // kısa (50 mum) veriyle bulunan sinyal Binance 1s geçmişiyle doğrulanmadan önerilmez
       if (r.decision === 'AL' || short) {
         const e = r.last, R = Math.abs(e - r.stop); if (!R) continue;
-        out.push({ r, kind: r.src === 'motor' ? 'Yeni sinyal · motor kurulumu' : 'Yeni sinyal · trend kırılımı', short, e, zone: buyZone(e, r.atr, short), stop: r.stop, risk: R / e * 100, L: ladder(e, r.stop, r.trailD, e, short), rank: 2000 + r.score });
-      } else if (r.decision === 'POZİSYONDA') {
-        const e = r.last, risk = (e - r.stop) / e * 100;
-        if (risk >= 2 && risk <= 8) out.push({ r, kind: 'Trend devam ediyor (robot zaten içeride)', short: false, e, zone: buyZone(e, r.atr), stop: r.stop, risk, L: ladder(r.entry || e, r.stop, r.trailD, e), rank: 1000 - risk });
+        // Trend kırılımında alım bölgesi: kırılan 20 günlük zirve ile +0.5 ATR arası (geri test). Fiyat yukarı kaçtıysa limit emir.
+        let zone = buyZone(e, r.atr, short), limit = false;
+        if (r.src !== 'motor' && r.brk && r.atr && !short) { zone = [r.brk, Math.max(r.brk + 0.5 * r.atr, Math.min(e, r.brk + 0.5 * r.atr))]; limit = e > zone[1]; }
+        out.push({ r, kind: r.src === 'motor' ? 'Yeni sinyal · motor kurulumu' : (limit ? 'Yeni sinyal · trend kırılımı · fiyat kaçtı: bölgeye limit emir koy (48 saat)' : 'Yeni sinyal · trend kırılımı'), short, e, zone, stop: r.stop, risk: R / e * 100, L: ladder(e, r.stop, r.trailD, e, short), rank: 2000 + r.score });
       }
+      // Not: "robot zaten içeride" (geç giriş) önerisi kaldırıldı. 18 coin 2020-2026 testinde geç giriş +0.18R, taze sinyal +0.83R; TRY maliyetiyle ~0.
     }
     return out.sort((a, b) => b.rank - a.rank);
   }
@@ -523,7 +526,7 @@
       <div><h3 style="margin:0">Şimdi alınabilecekler · ana coinler <span class="pill ${L.length ? 'good' : 'neutral'}">${L.length}</span></h3>
       <div class="mute" style="font-size:.82rem">1) AL bölgesinden al (fiyat bölgenin üstüne kaçtıysa kovalama). 2) STOP'u hemen koy. 3) SAT merdiveni: fiyat yazan seviyeye çıktıkça stopu yukarı çek; fiyat stopa inince sat. Sabit hedef yok: trend ne kadar giderse o kadar kazanırsın. İşlemlerin çoğu küçük zararla stop olur, para birkaç büyük kazanandan gelir.</div></div>
       ${L.length ? grid(L.slice(0, 20)) : '<p class="mute" style="margin:0">Şu an alım şartı tutan parite yok. Sinyaller saat başı mum kapanışında oluşur; alarmı açarsan robot her saat tarar ve haber verir.</p>'}
-      ${OTH.length ? `<details style="margin-top:4px"><summary class="mute">Diğer coinlerde sinyaller · önerilmez (${OTH.length})</summary><p class="note" style="font-size:.8rem;margin:6px 0;border-color:var(--warn)">Bu coinler ana coin listesinde değil. Gerçek spread ve sınırlı pozisyonla yapılan portföy testinde (303 TRY paritesi, son 13 ay) tüm paritelerde işlem yapmak −%49 zarar ettirdi. Yalnız ana coinler +%61 kazandırdı.</p>${grid(OTH.slice(0, 20))}</details>` : ''}
+      ${OTH.length ? `<details style="margin-top:4px"><summary class="mute">Diğer coinlerde sinyaller · önerilmez (${OTH.length})</summary><p class="note" style="font-size:.8rem;margin:6px 0;border-color:var(--warn)">Bu coinler ana coin listesinde değil. Gerçek spread ve sınırlı pozisyonla yapılan portföy testinde (303 TRY paritesi, son 13 ay) tüm paritelerde işlem yapmak −%49 ile −%89 arası zarar ettirdi. Ana coinlerde sinyal başına sonuç artıda (+0.17R), ama portföy sonucu kurallara çok duyarlı (−%4 ile +%60 arası).</p>${grid(OTH.slice(0, 20))}</details>` : ''}
       ${LO.length ? `<details style="margin-top:4px"><summary class="mute">Devam eden trendler · geç giriş, isteğe bağlı (${LO.length})</summary><p class="mute" style="font-size:.8rem;margin:6px 0">Sinyal daha önce geldi, trend sürüyor. Yeni sinyaller kadar iyi değil; sadece yeni sinyal yoksa ve stop %2–8 arasındaysa düşünülür.</p>${grid(LO.slice(0, 20))}</details>` : ''}
     </div>` + historyCard();
     $$('#buyNow .bn, #buyNow .hrow').forEach(b => b.onclick = () => openDetail(b.dataset.sym));
@@ -760,7 +763,7 @@
     const last = d.c15 ? d.c15[d.c15.length - 1].c : (tr.open ? tr.open.exitPx : tr.entry);
     let levels = '';
     if (tr.decision === 'AL') levels = lv('Giriş (şimdi)', fp(tr.entry)) + lv('AL bölgesi', (z => fp(z[0]) + ' – ' + fp(z[1]))(buyZone(tr.entry, tr.atr))) + lv('STOP', fp(tr.stop) + ` <small class="mute">−${tr.riskPct.toFixed(2)}%</small>`, 'dn');
-    else if (tr.decision === 'POZİSYONDA') { const o = tr.open; levels = lv('Giriş', fp(o.e)) + lv('Şu anki STOP', fp(o.stop) + ` <small class="mute">${pc(o.stop, last)}</small>`, 'dn') + lv('Açık kâr/zarar', `${pc(last, o.e)} · ${o.R >= 0 ? '+' : ''}${o.R.toFixed(2)}R`, o.R >= 0 ? 'up' : 'dn') + (() => { const lr = (last - o.stop) / last * 100, r0 = (o.e - o.stop0) / o.e * 100; return lr > Math.max(8, 1.5 * r0) ? lv('Yeni giriş', `Bu eski sinyal için geç (stop %${lr.toFixed(1)} uzakta). Üstte motor kartı AL diyorsa onun AL/STOP'unu kullan; yoksa yeni sinyal bekle.`, 'dn') : lv('Yeni giriş', `Mümkün: stop güncel iz süren stop (%${lr.toFixed(1)} risk)`); })(); }
+    else if (tr.decision === 'POZİSYONDA') { const o = tr.open; levels = lv('Giriş', fp(o.e)) + lv('Şu anki STOP', fp(o.stop) + ` <small class="mute">${pc(o.stop, last)}</small>`, 'dn') + lv('Açık kâr/zarar', `${pc(last, o.e)} · ${o.R >= 0 ? '+' : ''}${o.R.toFixed(2)}R`, o.R >= 0 ? 'up' : 'dn') + (() => { const lr = (last - o.stop) / last * 100, r0 = (o.e - o.stop0) / o.e * 100; return lr > Math.max(8, 1.5 * r0) ? lv('Yeni giriş', `Önerilmez: sinyal kaçtı (stop %${lr.toFixed(1)} uzakta). Yeni sinyal bekle.`, 'dn') : lv('Yeni giriş', 'Önerilmez: geç giriş testte zayıf (taze sinyal +0.83R, geç giriş +0.18R). Yeni sinyal bekle.', 'dn'); })(); }
     else if (tr.level != null) levels = lv('Tetik', `1s kapanış ${fp(tr.level)} üstünde`) + lv('Tetiklenirse stop', fp(tr.stop) + ` <small class="mute">−${tr.riskPct.toFixed(2)}%</small>`, 'dn') + lv('Zirveye uzaklık', pc(tr.level, last));
     let lad = tr.decision === 'AL' ? ladder(tr.entry, tr.stop, tr.trailAtr * tr.atr, tr.entry) : tr.decision === 'POZİSYONDA' && tr.open ? ladder(tr.open.e, tr.open.stop, tr.trailAtr * tr.atr, last) : [];
     const hist = tr.trades.slice(-6).reverse();

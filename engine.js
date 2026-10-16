@@ -996,7 +996,7 @@
     const entry = decision === 'AL' ? last.c : level;
     const stop = entry != null ? entry - o.atrStop * a : null;
     const closed = trades.filter(t => !t.open), sumR = closed.reduce((s, t) => s + t.R, 0);
-    return { decision, why, level, entry, stop, trailAtr: o.trail, atr: a, riskPct: entry ? (entry - stop) / entry * 100 : null, btc: reg ? regNow : null,
+    return { decision, why, level, brk, entry, stop, trailAtr: o.trail, atr: a, riskPct: entry ? (entry - stop) / entry * 100 : null, btc: reg ? regNow : null,
       open: openT, trades, stats: { n: closed.length, win: closed.filter(t => t.R > 0).length, sumR, avgR: closed.length ? sumR / closed.length : 0 }, params: o, hasHistory: hh[n - 1] != null, approx };
   }
 
