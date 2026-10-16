@@ -127,7 +127,9 @@
     for (const x of c15) if (!(x.v >= 0)) x.v = 0;
     return c15;
   }
-  const isBist = sym => BIST30.includes(sym) || !/USDT$/.test(sym);
+  // HATA DÜZELTMESİ: eskiden USDT ile bitmeyen her sembol (tüm TRY kripto pariteleri dahil) BIST hissesi sayılıyordu →
+  // TRY paritelerinde kırılım penceresi 20 gün yerine 7.5 gün (180 mum), BTC rejim filtresi kapalı, ana coin filtresi devre dışıydı.
+  const isBist = sym => BIST30.includes(sym) || !/(USDT|TRY|USDC|FDUSD|BTC|ETH|BNB|EUR)$/.test(sym);
 
   const BASES = ['https://data-api.binance.vision', 'https://api.binance.com', 'https://api1.binance.com', 'https://api3.binance.com'];
   let baseIdx = 0;
@@ -287,7 +289,7 @@
   function trendRow(u, tr, last, exact) {
     const dist = tr.level ? (tr.level / last - 1) * 100 : null;
     const openR = tr.open ? tr.open.R : null;
-    return { sym: u.sym, base: u.base, quote: u.quote || S.market, market: u.market || (isBist(u.sym) ? 'BIST' : 'USDT'), last, chg: u.chg, qv: u.qv,
+    return { sym: u.sym, base: u.base, quote: u.quote || S.market, market: u.market || (isBist(u.sym) ? 'BIST' : /TRY$/.test(u.sym) ? 'TRY' : 'USDT'), last, chg: u.chg, qv: u.qv,
       decision: tr.decision, status: T_STATUS[tr.decision], why: tr.why, level: tr.level, entry: tr.decision === 'POZİSYONDA' ? tr.open.e : tr.entry, stop: tr.decision === 'POZİSYONDA' ? tr.open.stop : tr.stop,
       riskPct: tr.riskPct, dist, openR, btc: tr.btc, hist: tr.stats, td: !!exact, model: 'trend',
       quality: tr.quality || null, brk: tr.brk ?? null, atr: tr.atr || null, trailD: tr.atr ? tr.atr * PA.TREND.trail : null, sigT: tr.open ? tr.open.sigT : null, stop0: tr.open ? tr.open.stop0 : tr.stop,
