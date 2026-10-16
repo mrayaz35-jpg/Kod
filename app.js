@@ -1245,7 +1245,7 @@
     $('#market').addEventListener('change', () => { store.set('mkt', $('#market').value); PA.setFx($('#market').value === 'TRY' ? store.get('fx', 1) : 1); results = []; renderList(); $('#scanInfo').textContent = $('#market').value === 'BIST' ? 'BIST 30 taranır. Twelve Data dakikada 8 sorguya izin verdiği için 30 hisse yaklaşık 4 dakika sürer.' : ($('#market').value === 'TRY' ? 'TL modu: coinler USDT paritesinden taranır, bütün fiyatlar güncel USD/TRY kuruyla TL\'ye çevrilir. ' : '') + 'Kripto taraması Crypto.com verisiyle (günlük + 1s) yapılır; öne çıkan coinler Binance 1s geçmişiyle (Twelve Data) kesinleştirilir.'; });
     if (![...$('#universe').options].some(o => +o.value === S.universe)) S.universe = 9999;
     $('#setNotify').closest('label').hidden = true;
-    { const bn = document.createElement('a'); bn.href = 'https://raw.githack.com/mrayaz35-jpg/Kod/ayaz-pa-app/index.html'; bn.target = '_blank'; bn.rel = 'noopener';
+    { const bn = document.createElement('a'); bn.href = 'https://raw.githack.com/mrayaz35-jpg/Kod/d165cc6b21b9147eaa8cbb6c49eac9d7fca7660a/index.html'; bn.target = '_blank'; bn.rel = 'noopener';
       bn.style.cssText = 'display:block;margin:0 0 14px;padding:14px 16px;border-radius:12px;background:var(--good);color:#fff;font-weight:700;text-decoration:none;text-align:center;font-size:1.05rem';
       bn.innerHTML = 'Tüm Binance TRY paritelerini (350+) taramak için buraya dokun ›<div style="font-weight:400;font-size:.8rem;opacity:.9;margin-top:4px">Bu sayfa Binance\'a bağlanamadığı için yalnızca ~116 coin tarar. Açılan sayfada uyarı çıkarsa "Open the page"e bas.</div>';
       $('#buyNow').before(bn); }
