@@ -195,6 +195,7 @@
   // testlerinin İKİSİNDE de bu durumlardaki sinyaller ortalamadan belirgin kötü çıktı.
   const GUARD = { maxRisk: 6, max24: 0.10, max168: 0.40, maxBtc7: 0.10 };
   function guard(c, i, riskPct, btc7) {
+    if (riskPct < 1) return `stop çok yakın (%${riskPct.toFixed(2)}): hareketsiz/stabil parite, maliyet kârı yer`;
     if (riskPct >= GUARD.maxRisk) return `stop çok uzak (%${riskPct.toFixed(1)}); risk/ödül bozuk`;
     if (i >= 24 && c[i].c / c[i - 24].c - 1 >= GUARD.max24) return `son 24 saatte %${((c[i].c / c[i - 24].c - 1) * 100).toFixed(0)} yükseldi: geç kalındı, geri çekilme bekle`;
     if (i >= 168 && c[i].c / c[i - 168].c - 1 >= GUARD.max168) return `son 7 günde %${((c[i].c / c[i - 168].c - 1) * 100).toFixed(0)} yükseldi: geç kalındı`;

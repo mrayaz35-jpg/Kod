@@ -932,6 +932,7 @@
   // c1h: kapanmış 1s mumlar (artan). opts: { btcD1, d1 (seviye yaklaşımı için), fee, slip, N, atrStop, trail }
   // Giriş koruması (engines.js GUARD ile aynı eşikler; 303 TRY + 18 coin testlerinde kötü çıkan girişler)
   function trendGuard(c, i, riskPct) {
+    if (riskPct < 1) return `stop çok yakın (%${riskPct.toFixed(2)}): hareketsiz parite`;
     if (riskPct >= 6) return `stop çok uzak (%${riskPct.toFixed(1)})`;
     if (i >= 24 && c[i].c / c[i - 24].c - 1 >= 0.10) return `son 24 saatte %${((c[i].c / c[i - 24].c - 1) * 100).toFixed(0)} yükseldi: geç kalındı, geri çekilme bekle`;
     if (i >= 168 && c[i].c / c[i - 168].c - 1 >= 0.40) return `son 7 günde %${((c[i].c / c[i - 168].c - 1) * 100).toFixed(0)} yükseldi: geç kalındı`;

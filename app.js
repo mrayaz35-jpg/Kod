@@ -170,7 +170,7 @@
     }
     return closed(out.slice(-bars));
   }
-  const STABLE = /^(USDC|FDUSD|TUSD|BUSD|DAI|USDP|EUR|AEUR|USD1|USDE|XUSD|BFUSD|EURI|PAXG|GBP|TRY|USDT|PYUSD|RLUSD|USDG|USDS|USDQ|USDD|USDF|USDX|FRAX|LUSD|GUSD|EURC|EURT|EURR|XAUT|USTC|UST|SUSD|CUSD|USDB|USD0|DEUSD|SRUSD|BUIDL|USYC)$/;
+  const STABLE = /^(U|USDC|FDUSD|TUSD|BUSD|DAI|USDP|EUR|AEUR|USD1|USDE|XUSD|BFUSD|EURI|PAXG|GBP|TRY|USDT|PYUSD|RLUSD|USDG|USDS|USDQ|USDD|USDF|USDX|FRAX|LUSD|GUSD|EURC|EURT|EURR|XAUT|USTC|UST|SUSD|CUSD|USDB|USD0|DEUSD|SRUSD|BUIDL|USYC)$/;
   async function universe(quote, max) {
     if (ART) {
       const p = await cdc('get_tickers', {});
@@ -465,6 +465,11 @@
     $$('#phaseChips .chip').forEach(b => b.onclick = () => { phaseFilter = b.dataset.k; renderList(); });
   }
   const T_TONE = { 'AL': 'good', 'SAT (short)': 'warn', 'POZİSYONDA': 'good', 'KIRILIM YAKIN': 'warn', 'BEKLE': 'neutral', 'UZAK DUR': 'bad' };
+  // ANA COİNLER: piyasa değeri büyük, en az 1 yıllık geçmişi ve derin tahtası olan coinler. Backtest (303 TRY paritesi, gerçek spread,
+  // 5 pozisyon / %1 risk portföy simülasyonu, 2025-10 → 2026-10): tüm paritelerde −%49, yalnız ana coinlerde +%61 (en büyük düşüş %30).
+  // 18 büyük coinde 2020-2026 testi de aynı yönde. Liste piyasa değerine göre seçildi, backtest sonucuna göre değil.
+  const MAJORS = new Set(['BTC', 'ETH', 'SOL', 'XRP', 'BNB', 'ADA', 'DOGE', 'AVAX', 'LINK', 'DOT', 'LTC', 'TRX', 'NEAR', 'SUI', 'APT', 'ARB', 'OP', 'BCH', 'ATOM', 'FIL', 'UNI', 'AAVE', 'INJ', 'TIA', 'SEI', 'HBAR', 'ETC', 'PEPE', 'SHIB', 'WLD']);
+  const isMajor = r => MAJORS.has(r.base) || isBist(r.sym || '');
   // SAT merdiveni: iz süren stopun basit hali. "Fiyat P'ye çıkarsa stopu S'ye çek." D = iz süren mesafe (fiyat birimi)
   function ladder(e, stop, D, last, short) {
     if (!(D > 0) || !(e > 0)) return [];
@@ -506,7 +511,7 @@
   function renderBuyNow() {
     const box = $('#buyNow'); if (!box) return;
     if (!results.length) { box.innerHTML = alarmBar(); bindAlarm(); return; }
-    const ALL = buyNow(), L = ALL.filter(x => x.rank >= 2000), LO = ALL.filter(x => x.rank < 2000);
+    const ALL0 = buyNow(), ALL = ALL0.filter(x => isMajor(x.r)), OTH = ALL0.filter(x => !isMajor(x.r) && x.rank >= 2000), L = ALL.filter(x => x.rank >= 2000), LO = ALL.filter(x => x.rank < 2000);
     const card = x => `<div class="bn" data-sym="${esc(x.r.sym)}" style="cursor:pointer;border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px">
         <div><b style="font-size:1.05rem">${esc(x.r.base)}</b> <span class="pill ${x.short ? 'warn' : 'good'}">${x.short ? 'SHORT' : 'AL'}</span><br><span class="mute" style="font-size:.75rem">${esc(x.kind)}</span></div>
         <div class="num" style="font-size:.88rem"><span class="mute">AL bölgesi</span> <b>${fp(x.zone[0])} – ${fp(x.zone[1])}</b></div>
@@ -515,9 +520,10 @@
       </div>`;
     const grid = arr => `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px">${arr.map(card).join('')}</div>`;
     box.innerHTML = alarmBar() + `<div class="card" style="border-color:var(--good)">
-      <div><h3 style="margin:0">Şimdi alınabilecekler <span class="pill ${L.length ? 'good' : 'neutral'}">${L.length}</span></h3>
+      <div><h3 style="margin:0">Şimdi alınabilecekler · ana coinler <span class="pill ${L.length ? 'good' : 'neutral'}">${L.length}</span></h3>
       <div class="mute" style="font-size:.82rem">1) AL bölgesinden al (fiyat bölgenin üstüne kaçtıysa kovalama). 2) STOP'u hemen koy. 3) SAT merdiveni: fiyat yazan seviyeye çıktıkça stopu yukarı çek; fiyat stopa inince sat. Sabit hedef yok: trend ne kadar giderse o kadar kazanırsın. İşlemlerin çoğu küçük zararla stop olur, para birkaç büyük kazanandan gelir.</div></div>
       ${L.length ? grid(L.slice(0, 20)) : '<p class="mute" style="margin:0">Şu an alım şartı tutan parite yok. Sinyaller saat başı mum kapanışında oluşur; alarmı açarsan robot her saat tarar ve haber verir.</p>'}
+      ${OTH.length ? `<details style="margin-top:4px"><summary class="mute">Diğer coinlerde sinyaller · önerilmez (${OTH.length})</summary><p class="note" style="font-size:.8rem;margin:6px 0;border-color:var(--warn)">Bu coinler ana coin listesinde değil. Gerçek spread ve sınırlı pozisyonla yapılan portföy testinde (303 TRY paritesi, son 13 ay) tüm paritelerde işlem yapmak −%49 zarar ettirdi. Yalnız ana coinler +%61 kazandırdı.</p>${grid(OTH.slice(0, 20))}</details>` : ''}
       ${LO.length ? `<details style="margin-top:4px"><summary class="mute">Devam eden trendler · geç giriş, isteğe bağlı (${LO.length})</summary><p class="mute" style="font-size:.8rem;margin:6px 0">Sinyal daha önce geldi, trend sürüyor. Yeni sinyaller kadar iyi değil; sadece yeni sinyal yoksa ve stop %2–8 arasındaysa düşünülür.</p>${grid(LO.slice(0, 20))}</details>` : ''}
     </div>` + historyCard();
     $$('#buyNow .bn, #buyNow .hrow').forEach(b => b.onclick = () => openDetail(b.dataset.sym));
