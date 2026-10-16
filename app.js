@@ -631,7 +631,7 @@
         : r.dist != null ? `<b>${r.dist <= 0 ? 'kırıldı' : '%' + r.dist.toFixed(1)}</b><span class="mute" style="font-size:.75rem">zirveye uzak</span>` : '<b>—</b>';
       return `<button class="row" data-sym="${esc(r.sym)}">
         <div><div class="sym">${esc(r.base)}<small>/${esc(r.quote)}</small></div>
-          <div class="sub"><span class="num" data-px="${esc(r.sym)}">${fp(r.last)}</span><span class="num ${r.chg >= 0 ? 'up' : 'dn'}" data-chg="${esc(r.sym)}">${r.chg >= 0 ? '+' : ''}${(r.chg || 0).toFixed(2)}%</span><span>Hacim ${r.market === 'BIST' ? fmtTL(r.qv || 0) : fmtUsd(r.qv || 0)}</span></div></div>
+          <div class="sub"><span class="num" data-px="${esc(r.sym)}">${fp(r.last)}</span><span class="num ${r.chg >= 0 ? 'up' : 'dn'}" data-chg="${esc(r.sym)}">${r.chg >= 0 ? '+' : ''}${(r.chg || 0).toFixed(2)}%</span><span>Hacim ${r.market === 'BIST' || (!ART && r.quote === 'TRY') ? fmtTL(r.qv || 0) : fmtUsd(r.qv || 0)}</span></div></div>
         <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
           <span><span class="pill ${T_TONE[dec] || statusTone[r.status] || 'neutral'}">${esc(dec)}</span>${r.td ? ' <span class="pill neutral" title="Binance 1 saatlik geçmişiyle kesinleşti">Binance ✓</span>' : ''}</span>
           <span class="sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.why || r.phaseLabel || '')}</span></div>

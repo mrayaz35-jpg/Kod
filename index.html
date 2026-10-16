@@ -2,6 +2,17 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
+<script>
+/* Güncel sürüm yükleyici: raw.githack dal (branch) adresini önbellekte eski tutabiliyor. Her açılışta GitHub'dan son kayıt (commit) numarası okunur
+   ve sayfa o kayda ait değişmez adrese yönlendirilir; böylece telefonda hep son sürüm çalışır. Ayarlar ve sinyal defteri korunur (aynı alan adı). */
+(function () {
+  var m = location.hostname.indexOf('githack.com') >= 0 && location.pathname.match(/^\/mrayaz35-jpg\/Kod\/([^\/]+)\//i);
+  if (!m) return;
+  fetch('https://api.github.com/repos/mrayaz35-jpg/Kod/commits/ayaz-pa-app', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+    if (j && j.sha && m[1] !== j.sha) location.replace(location.origin + location.pathname.replace('/Kod/' + m[1] + '/', '/Kod/' + j.sha + '/') + location.hash);
+  }).catch(function () {});
+})();
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Ayaz Price Action</title>
 <meta name="theme-color" content="#0e1416">

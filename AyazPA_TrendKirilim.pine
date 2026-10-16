@@ -85,4 +85,3 @@ if stopRaised
 plot(hh, "20 günlük zirve", color = color.new(color.orange, 30), style = plot.style_stepline)
 plot(strategy.position_size > 0 ? stopL : na, "Stop / iz süren stop", color = color.red, style = plot.style_linebr, linewidth = 2)
 plotshape(longSig, "AL", shape.triangleup, location.belowbar, color = qual >= 2 ? color.green : color.teal, size = size.small, text = "AL")
-alertcondition(longSig, "Ayaz PA AL sinyali", "AYAZ PA AL {{ticker}} fiyat {{close}}")

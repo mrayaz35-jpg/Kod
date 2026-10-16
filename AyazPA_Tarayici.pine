@@ -1,0 +1,128 @@
+//@version=5
+// AYAZ PA · TARAYICI (TradingView verisiyle 18 coini aynı anda tarar)
+// Herhangi bir grafiğe ekle (önerilen: 1 saat). Robotun trend kırılımı kuralı + kırılım kalitesi + giriş koruması.
+// Tablo: yeni AL sinyali, açık pozisyon (iz süren stop), AL bölgesi, STOP, kalite. Yeni AL'de alarm (alert) gönderir.
+// İkinci 18 coin için göstergeyi ikinci kez ekleyip sembolleri ayarlardan değiştir. Yatırım tavsiyesi değildir.
+indicator("Ayaz PA · Tarayıcı", overlay = true)
+
+tf    = input.timeframe("60", "Zaman dilimi (robot: 1 saat)")
+minQ  = input.int(1, "En düşük kalite (0=hepsi, 1=B, 2=A)", minval = 0, maxval = 2)
+btcS  = input.symbol("BINANCE:BTCUSDT", "BTC (rejim)")
+g = "Semboller"
+s01 = input.symbol("BINANCE:BTCTRY",  "1",  group = g)
+s02 = input.symbol("BINANCE:ETHTRY",  "2",  group = g)
+s03 = input.symbol("BINANCE:SOLTRY",  "3",  group = g)
+s04 = input.symbol("BINANCE:XRPTRY",  "4",  group = g)
+s05 = input.symbol("BINANCE:BNBTRY",  "5",  group = g)
+s06 = input.symbol("BINANCE:ADATRY",  "6",  group = g)
+s07 = input.symbol("BINANCE:DOGETRY", "7",  group = g)
+s08 = input.symbol("BINANCE:AVAXTRY", "8",  group = g)
+s09 = input.symbol("BINANCE:LINKTRY", "9",  group = g)
+s10 = input.symbol("BINANCE:DOTTRY",  "10", group = g)
+s11 = input.symbol("BINANCE:LTCTRY",  "11", group = g)
+s12 = input.symbol("BINANCE:TRXTRY",  "12", group = g)
+s13 = input.symbol("BINANCE:NEARTRY", "13", group = g)
+s14 = input.symbol("BINANCE:SUITRY",  "14", group = g)
+s15 = input.symbol("BINANCE:APTTRY",  "15", group = g)
+s16 = input.symbol("BINANCE:ARBTRY",  "16", group = g)
+s17 = input.symbol("BINANCE:INJTRY",  "17", group = g)
+s18 = input.symbol("BINANCE:TIATRY",  "18", group = g)
+
+// BTC rejimi: önceki tamamlanmış günün kapanışı > 50 günlük ortalama
+btcOk = request.security(btcS, "D", close[1] > ta.sma(close, 50)[1], lookahead = barmerge.lookahead_on)
+
+// Robot kuralı (sembolün kendi verisinde, durum saklı). Dönüş: [durum, fiyat, stop, kalite, kırılım seviyesi, atr, giriş]
+// durum: 2 = YENİ AL (son kapanan mumda), 1 = pozisyonda, 0 = yok
+robot(bool regime) =>
+    a      = ta.atr(14)
+    hh     = ta.highest(high, 480)[1]
+    volAvg = ta.sma(volume, 480)[1]
+    rv     = volAvg > 0 ? volume / volAvg : 0
+    rng    = high - low
+    s840   = math.sum(rng, 840)[1]
+    s120   = math.sum(rng, 120)[1]
+    sq     = (s840 - s120) > 0 ? (s120 / 120) / ((s840 - s120) / 720) : 1.0
+    q      = (rv >= 3 ? 1 : 0) + (sq < 0.9 ? 1 : 0)
+    riskP  = 4 * a / close * 100
+    guard  = riskP >= 1 and riskP < 6 and close / close[24] - 1 < 0.10 and close / close[168] - 1 < 0.40
+    var float st   = na
+    var float best = na
+    var float ent  = na
+    var float lvl  = na
+    state = 0
+    if not na(st) and low <= st
+        st   := na
+        best := na
+        ent  := na
+    else if not na(st)
+        best := math.max(best, high)
+        st   := math.max(st, best - 12 * a)
+        state := 1
+    if na(st) and close > hh and regime and guard and q >= minQ
+        st    := close - 4 * a
+        best  := close
+        ent   := close
+        lvl   := hh
+        state := 2
+    [state, close, st, q, lvl, a, ent]
+
+[d01, p01, t01, q01, l01, a01, e01] = request.security(s01, tf, robot(btcOk))
+[d02, p02, t02, q02, l02, a02, e02] = request.security(s02, tf, robot(btcOk))
+[d03, p03, t03, q03, l03, a03, e03] = request.security(s03, tf, robot(btcOk))
+[d04, p04, t04, q04, l04, a04, e04] = request.security(s04, tf, robot(btcOk))
+[d05, p05, t05, q05, l05, a05, e05] = request.security(s05, tf, robot(btcOk))
+[d06, p06, t06, q06, l06, a06, e06] = request.security(s06, tf, robot(btcOk))
+[d07, p07, t07, q07, l07, a07, e07] = request.security(s07, tf, robot(btcOk))
+[d08, p08, t08, q08, l08, a08, e08] = request.security(s08, tf, robot(btcOk))
+[d09, p09, t09, q09, l09, a09, e09] = request.security(s09, tf, robot(btcOk))
+[d10, p10, t10, q10, l10, a10, e10] = request.security(s10, tf, robot(btcOk))
+[d11, p11, t11, q11, l11, a11, e11] = request.security(s11, tf, robot(btcOk))
+[d12, p12, t12, q12, l12, a12, e12] = request.security(s12, tf, robot(btcOk))
+[d13, p13, t13, q13, l13, a13, e13] = request.security(s13, tf, robot(btcOk))
+[d14, p14, t14, q14, l14, a14, e14] = request.security(s14, tf, robot(btcOk))
+[d15, p15, t15, q15, l15, a15, e15] = request.security(s15, tf, robot(btcOk))
+[d16, p16, t16, q16, l16, a16, e16] = request.security(s16, tf, robot(btcOk))
+[d17, p17, t17, q17, l17, a17, e17] = request.security(s17, tf, robot(btcOk))
+[d18, p18, t18, q18, l18, a18, e18] = request.security(s18, tf, robot(btcOk))
+
+syms = array.from(s01, s02, s03, s04, s05, s06, s07, s08, s09, s10, s11, s12, s13, s14, s15, s16, s17, s18)
+dd   = array.from(d01, d02, d03, d04, d05, d06, d07, d08, d09, d10, d11, d12, d13, d14, d15, d16, d17, d18)
+pp   = array.from(p01, p02, p03, p04, p05, p06, p07, p08, p09, p10, p11, p12, p13, p14, p15, p16, p17, p18)
+tt   = array.from(t01, t02, t03, t04, t05, t06, t07, t08, t09, t10, t11, t12, t13, t14, t15, t16, t17, t18)
+qq   = array.from(q01, q02, q03, q04, q05, q06, q07, q08, q09, q10, q11, q12, q13, q14, q15, q16, q17, q18)
+ll   = array.from(l01, l02, l03, l04, l05, l06, l07, l08, l09, l10, l11, l12, l13, l14, l15, l16, l17, l18)
+aa   = array.from(a01, a02, a03, a04, a05, a06, a07, a08, a09, a10, a11, a12, a13, a14, a15, a16, a17, a18)
+ee   = array.from(e01, e02, e03, e04, e05, e06, e07, e08, e09, e10, e11, e12, e13, e14, e15, e16, e17, e18)
+
+fmt(x) => na(x) ? "—" : str.tostring(x, x >= 1000 ? "#.##" : x >= 1 ? "#.####" : "#.########")
+short(s) => str.replace_all(str.replace_all(s, "BINANCE:", ""), "TRY", "")
+
+var table T = table.new(position.top_right, 6, 20, bgcolor = color.new(color.black, 15), border_width = 1, border_color = color.new(color.gray, 60))
+if barstate.islast
+    table.cell(T, 0, 0, "Coin", text_color = color.white, text_size = size.small)
+    table.cell(T, 1, 0, "Durum", text_color = color.white, text_size = size.small)
+    table.cell(T, 2, 0, "Fiyat", text_color = color.white, text_size = size.small)
+    table.cell(T, 3, 0, "AL bölgesi / giriş", text_color = color.white, text_size = size.small)
+    table.cell(T, 4, 0, "STOP", text_color = color.white, text_size = size.small)
+    table.cell(T, 5, 0, "Kalite", text_color = color.white, text_size = size.small)
+    for i = 0 to 17
+        d = array.get(dd, i)
+        st = d == 2 ? "YENİ AL" : d == 1 ? "Pozisyonda" : "—"
+        col = d == 2 ? color.lime : d == 1 ? color.teal : color.gray
+        lv = array.get(ll, i)
+        av = array.get(aa, i)
+        zone = d == 2 ? fmt(lv) + " – " + fmt(lv + 0.5 * av) : d == 1 ? "giriş " + fmt(array.get(ee, i)) : "—"
+        qv = array.get(qq, i)
+        table.cell(T, 0, i + 1, short(array.get(syms, i)), text_color = color.white, text_size = size.small)
+        table.cell(T, 1, i + 1, st, text_color = col, text_size = size.small)
+        table.cell(T, 2, i + 1, fmt(array.get(pp, i)), text_color = color.white, text_size = size.small)
+        table.cell(T, 3, i + 1, zone, text_color = color.white, text_size = size.small)
+        table.cell(T, 4, i + 1, d > 0 ? fmt(array.get(tt, i)) : "—", text_color = color.red, text_size = size.small)
+        table.cell(T, 5, i + 1, d > 0 ? (qv >= 2 ? "A" : qv == 1 ? "B" : "C") : "", text_color = color.white, text_size = size.small)
+    table.cell(T, 0, 19, btcOk ? "BTC rejimi: olumlu" : "BTC rejimi: zayıf (alım yok)", text_color = btcOk ? color.lime : color.orange, text_size = size.small)
+    table.merge_cells(T, 0, 19, 5, 19)
+
+// Alarm: yeni AL (mum kapanışında)
+for i = 0 to 17
+    if array.get(dd, i) == 2
+        alert("AYAZ PA YENİ AL " + short(array.get(syms, i)) + " | AL bölgesi " + fmt(array.get(ll, i)) + "–" + fmt(array.get(ll, i) + 0.5 * array.get(aa, i)) + " | STOP " + fmt(array.get(tt, i)) + " | kalite " + (array.get(qq, i) >= 2 ? "A" : "B"), alert.freq_once_per_bar_close)
