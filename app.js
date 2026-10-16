@@ -518,7 +518,8 @@
   function renderBuyNow() {
     const box = $('#buyNow'); if (!box) return;
     if (!results.length) { box.innerHTML = alarmBar(); bindAlarm(); return; }
-    const ALL0 = buyNow(), ALL = ALL0.filter(x => isMajor(x.r) && x.q >= 1), OTH = ALL0.filter(x => (!isMajor(x.r) || x.q < 1) && x.rank >= 2000), L = ALL.filter(x => x.rank >= 2000), LO = ALL.filter(x => x.rank < 2000);
+    const okMain = x => isMajor(x.r) && (x.r.src !== 'motor' || x.q >= 1);   // derin test (30 ana coin, 2021–2026): trend kırılımında kalite filtresi sonucu iyileştirmedi
+    const ALL0 = buyNow(), ALL = ALL0.filter(okMain), OTH = ALL0.filter(x => !okMain(x) && x.rank >= 2000), L = ALL.filter(x => x.rank >= 2000), LO = ALL.filter(x => x.rank < 2000);
     const card = x => `<div class="bn" data-sym="${esc(x.r.sym)}" style="cursor:pointer;border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px">
         <div><b style="font-size:1.05rem">${esc(x.r.base)}</b> <span class="pill ${x.short ? 'warn' : 'good'}">${x.short ? 'SHORT' : 'AL'}</span> <span class="pill ${x.q >= 2 ? 'good' : x.q === 1 ? 'neutral' : 'bad'}" title="Kırılım kalitesi: hacim ≥3x ve sıkışma sonrası kırılım">${x.q >= 2 ? 'A kalite' : x.q === 1 ? 'B kalite' : 'C kalite'}</span><br><span class="mute" style="font-size:.75rem">${esc(x.kind)}</span></div>
         <div class="num" style="font-size:.88rem"><span class="mute">AL bölgesi</span> <b>${fp(x.zone[0])} – ${fp(x.zone[1])}</b></div>
@@ -528,9 +529,9 @@
     const grid = arr => `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px">${arr.map(card).join('')}</div>`;
     box.innerHTML = alarmBar() + `<div class="card" style="border-color:var(--good)">
       <div><h3 style="margin:0">Şimdi alınabilecekler · ana coinler <span class="pill ${L.length ? 'good' : 'neutral'}">${L.length}</span></h3>
-      <div class="mute" style="font-size:.82rem">Kalite: A = kırılım mumunda hacim 20 günlük ortalamanın 3 katı + öncesinde sıkışma (testte en iyi), B = ikisinden biri. 1) AL bölgesinden al (fiyat bölgenin üstüne kaçtıysa kovalama). 2) STOP'u hemen koy. 3) SAT merdiveni: fiyat yazan seviyeye çıktıkça stopu yukarı çek; fiyat stopa inince sat. Sabit hedef yok: trend ne kadar giderse o kadar kazanırsın. İşlemlerin çoğu küçük zararla stop olur, para birkaç büyük kazanandan gelir.</div></div>
+      <div class="mute" style="font-size:.82rem"><b>Para yönetimi: her işleme sermayenin %25'i, aynı anda en fazla 4 işlem.</b> Kalite: A = kırılım mumunda hacim 20 günlük ortalamanın 3 katı + öncesinde sıkışma, B = ikisinden biri, C = hiçbiri (trendde C de geçerli). 1) AL bölgesinden al (fiyat bölgenin üstüne kaçtıysa kovalama). 2) STOP'u hemen koy. 3) SAT merdiveni: fiyat yazan seviyeye çıktıkça stopu yukarı çek; fiyat stopa inince sat. Sabit hedef yok: trend ne kadar giderse o kadar kazanırsın. İşlemlerin çoğu küçük zararla stop olur, para birkaç büyük kazanandan gelir.</div></div>
       ${L.length ? grid(L.slice(0, 20)) : '<p class="mute" style="margin:0">Şu an alım şartı tutan parite yok. Sinyaller saat başı mum kapanışında oluşur; alarmı açarsan robot her saat tarar ve haber verir.</p>'}
-      ${OTH.length ? `<details style="margin-top:4px"><summary class="mute">Diğer sinyaller · önerilmez (${OTH.length})</summary><p class="note" style="font-size:.8rem;margin:6px 0;border-color:var(--warn)">Ya ana coin listesinde değil ya da C kalite kırılım (hacim teyidi ve sıkışma yok; TRY ana coinlerde −0.14R). Gerçek spread ve sınırlı pozisyonla yapılan portföy testinde (303 TRY paritesi, son 13 ay) tüm paritelerde işlem yapmak −%49 ile −%89 arası zarar ettirdi. Ana coinlerde sinyal başına sonuç artıda (+0.17R), ama portföy sonucu kurallara çok duyarlı (−%4 ile +%60 arası).</p>${grid(OTH.slice(0, 20))}</details>` : ''}
+      ${OTH.length ? `<details style="margin-top:4px"><summary class="mute">Diğer sinyaller · önerilmez (${OTH.length})</summary><p class="note" style="font-size:.8rem;margin:6px 0;border-color:var(--warn)">Ana coin listesinde değil (ya da C kalite motor kurulumu). Gerçek spread ve sınırlı pozisyonla yapılan portföy testinde (303 TRY paritesi, son 13 ay) tüm paritelerde işlem yapmak −%49 ile −%89 arası zarar ettirdi. Ana coinlerde sinyal başına sonuç artıda (+0.17R), ama portföy sonucu kurallara çok duyarlı (−%4 ile +%60 arası).</p>${grid(OTH.slice(0, 20))}</details>` : ''}
       ${LO.length ? `<details style="margin-top:4px"><summary class="mute">Devam eden trendler · geç giriş, isteğe bağlı (${LO.length})</summary><p class="mute" style="font-size:.8rem;margin:6px 0">Sinyal daha önce geldi, trend sürüyor. Yeni sinyaller kadar iyi değil; sadece yeni sinyal yoksa ve stop %2–8 arasındaysa düşünülür.</p>${grid(LO.slice(0, 20))}</details>` : ''}
     </div>` + historyCard();
     $$('#buyNow .bn, #buyNow .hrow').forEach(b => b.onclick = () => openDetail(b.dataset.sym));
@@ -788,7 +789,7 @@
       ${lad.length ? `<div><b style="font-size:.9rem">SAT merdiveni</b> <span class="mute" style="font-size:.8rem">· sabit hedef yok; fiyat yükseldikçe stopu çek, stopa gelince sat</span>${ladderTable(lad)}</div>` : ''}
       ${tr.btc != null ? `<p class="mute" style="margin:0;font-size:.85rem">BTC rejimi: ${tr.btc === 1 ? 'olumlu (günlük kapanış 50 günlük ortalamanın üstünde)' : 'zayıf: yeni alım yapılmaz'}.</p>` : (isBist(d.sym) ? '<p class="mute" style="margin:0;font-size:.85rem">BIST: model kripto verisinde test edildi, hisselerde doğrulanmadı.</p>' : '')}
       <details><summary class="mute">Son sinyaller (${exact ? 'Binance 1s geçmişi' : 'veri yok'})</summary><div style="margin-top:8px">${histHtml}</div></details>
-      <p class="note" style="margin:0">Kural: 1s kapanış 20 günlük zirvenin üstünde + BTC rejimi olumlu → AL. Stop giriş − 4 ATR; çıkış SAT merdiveni (iz süren stop: en yüksek − 12 ATR). 18 coinde 2024–Eyl 2026 gerçek Binance verisinde test edildi: kazanma ~%30, ortalama +0.5R/işlem; kayıp serileri uzun olabilir (17'ye kadar). Aynı anda en fazla 5 pozisyon, işlem başı %0.5–1 risk önerilir.</p>
+      <p class="note" style="margin:0">Kural: 1s kapanış 20 günlük zirvenin üstünde + BTC rejimi olumlu → AL. Stop giriş − 4 ATR; çıkış SAT merdiveni (iz süren stop: en yüksek − 16 ATR). Derin test (30 ana coin TRY, 2021–Eki 2026, gerçek spread): yıllık ~%57, en büyük düşüş %22, en kötü ay −%9; 2022'de ~%0, son 12 ayda +%30. İşlemlerin çoğu küçük zararla kapanır, para birkaç büyük trendden gelir. Her işleme sermayenin %25'i, aynı anda en fazla 4 işlem.</p>
     </div>`;
   }
   function recompute() {
@@ -1004,7 +1005,7 @@
     const d = new Date(lastScan);
     $('#dailyTitle').textContent = 'Günlük plan · ' + d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' });
     const reg = results.find(r => r.btc != null);
-    $('#dailyNote').textContent = `${new Date(lastScan).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} taraması · ${results.length} sembol` + (reg ? ` · BTC rejimi ${reg.btc === 1 ? 'olumlu' : 'zayıf: yeni alım yok, açık pozisyonları iz süren stopla yönet'}` : '') + '. Aynı anda en fazla 5 pozisyon, işlem başı %0.5–1 risk.';
+    $('#dailyNote').textContent = `${new Date(lastScan).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} taraması · ${results.length} sembol` + (reg ? ` · BTC rejimi ${reg.btc === 1 ? 'olumlu' : 'zayıf: yeni alım yok, açık pozisyonları iz süren stopla yönet'}` : '') + '. Her işleme sermayenin %25\'i, aynı anda en fazla 4 işlem.';
     const item = r => `<li><button class="row" style="padding:0;display:block;border:0" data-sym="${esc(r.sym)}"><b class="sym" style="font-size:1rem">${esc(r.base)}</b> <span class="pill ${T_TONE[r.decision] || 'neutral'}">${esc(r.decision || r.status)}</span>${r.td ? ' <span class="mute">Binance ✓</span>' : ''}<br>
       ${r.entry != null ? `<span class="num">${r.decision === 'KIRILIM YAKIN' || r.decision === 'BEKLE' ? 'Tetik (1s kapanış >)' : 'Giriş'} ${fp(r.entry)} · Stop ${fp(r.stop)}${r.decision === 'POZİSYONDA' && r.openR != null ? ` · ${r.openR >= 0 ? '+' : ''}${r.openR.toFixed(1)}R` : ''}</span><br>` : ''}
       <span class="mute">${esc(r.why || '')}</span></button></li>`;
@@ -1012,7 +1013,7 @@
     const by = f => results.filter(f).sort((a, b) => b.score - a.score).slice(0, 10);
     $('#dailyGrid').innerHTML =
       sec('AL · motor kurulumları', 'Test edilmiş motor kombinasyonlarından biri son 1s mumda tamamlandı. Stop 3 ATR, iz süren stop 8 ATR. Önce birden çok kurulumu olanlar.', by(r => r.decision === 'AL' && r.src === 'motor')) +
-      sec('AL · trend kırılımı', '1s kapanış 20 günlük zirveyi kırdı, BTC rejimi olumlu. Stop 4 ATR, iz süren stop 12 ATR.', by(r => r.decision === 'AL' && r.src !== 'motor')) +
+      sec('AL · trend kırılımı', '1s kapanış 20 günlük zirveyi kırdı, BTC rejimi olumlu. Stop 4 ATR, iz süren stop 16 ATR.', by(r => r.decision === 'AL' && r.src !== 'motor')) +
       (S.short ? sec('Short (vadeli)', 'Test edilmiş short kurulumları (NY seansı ağırlıklı).', by(r => r.decision === 'SAT (short)')) : '') +
       sec('Kırılıma yakın · alarm kur', 'Fiyat 20 günlük zirveye 1 ATR içinde. 1s kapanış tetik seviyesinin üstünde olursa AL.', by(r => r.decision === 'KIRILIM YAKIN')) +
       sec('Pozisyonda · iz süren stop', 'Sinyal daha önce geldi, trend sürüyor. Stopu her saat güncel iz süren seviyeye taşı; yeni giriş için geç olabilir.', by(r => r.decision === 'POZİSYONDA')) +

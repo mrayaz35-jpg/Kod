@@ -6,7 +6,7 @@
 indicator("Ayaz PA · Tarayıcı", overlay = true)
 
 tf    = input.timeframe("60", "Zaman dilimi (robot: 1 saat)")
-minQ  = input.int(1, "En düşük kalite (0=hepsi, 1=B, 2=A)", minval = 0, maxval = 2)
+minQ  = input.int(0, "En düşük kalite (0=hepsi, 1=B, 2=A)", minval = 0, maxval = 2)
 btcS  = input.symbol("BINANCE:BTCUSDT", "BTC (rejim)")
 g = "Semboller"
 s01 = input.symbol("BINANCE:BTCTRY",  "1",  group = g)
@@ -56,7 +56,7 @@ robot(bool regime) =>
         ent  := na
     else if not na(st)
         best := math.max(best, high)
-        st   := math.max(st, best - 12 * a)
+        st   := math.max(st, best - 16 * a)
         state := 1
     if na(st) and close > hh and regime and guard and q >= minQ
         st    := close - 4 * a
@@ -125,4 +125,4 @@ if barstate.islast
 // Alarm: yeni AL (mum kapanışında)
 for i = 0 to 17
     if array.get(dd, i) == 2
-        alert("AYAZ PA YENİ AL " + short(array.get(syms, i)) + " | AL bölgesi " + fmt(array.get(ll, i)) + "–" + fmt(array.get(ll, i) + 0.5 * array.get(aa, i)) + " | STOP " + fmt(array.get(tt, i)) + " | kalite " + (array.get(qq, i) >= 2 ? "A" : "B"), alert.freq_once_per_bar_close)
+        alert("AYAZ PA YENİ AL " + short(array.get(syms, i)) + " | AL bölgesi " + fmt(array.get(ll, i)) + "–" + fmt(array.get(ll, i) + 0.5 * array.get(aa, i)) + " | STOP " + fmt(array.get(tt, i)) + " | kalite " + (array.get(qq, i) >= 2 ? "A" : array.get(qq, i) == 1 ? "B" : "C"), alert.freq_once_per_bar_close)

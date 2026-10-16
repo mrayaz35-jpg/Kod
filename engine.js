@@ -909,9 +909,10 @@
 
   // ================= TREND KIRILIMI (gerçek Binance verisinde test edilen ana model) =================
   // Kural: 1s kapanış, önceki 480 adet 1s mumun (20 gün) en yükseğinin üstünde + BTC günlük kapanış 50 günlük ortalamanın üstünde
-  // → bir sonraki mumda AL. Stop: giriş − 4 x ATR(1s). Çıkış: iz süren stop = girişten beri en yüksek − 12 x ATR(1s). Sabit hedef yok.
+  // → bir sonraki mumda AL. Stop: giriş − 4 x ATR(1s). Çıkış: iz süren stop = girişten beri en yüksek − 16 x ATR(1s). Sabit hedef yok.
+  // Derin test (30 ana coin TRY 1s, 2021–2026, eğitim 2021–23 / test 2024–26): iz 16 ATR, 8 ve 12'den her kombinasyonda daha iyi.
   // 18 coin, 2024-01 → 2026-04 (geliştirme) ve 2026-05 → 2026-09 (test), %0.1 komisyon + %0.03 kayma ile pozitif.
-  const TREND = { N: 480, atrStop: 4, trail: 12, btcN: 50, nearAtr: 1.0, maxChaseAtr: 1.5 };
+  const TREND = { N: 480, atrStop: 4, trail: 16, btcN: 50, nearAtr: 1.0, maxChaseAtr: 1.5 };
   // BTC günlük rejimi: gün kapanınca bilinir. d1: [{t,o,h,l,c}] artan sıralı (t = gün başlangıcı UTC)
   function btcRegimeMap(d1, n = TREND.btcN) {
     const m = new Map();

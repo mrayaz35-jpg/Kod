@@ -2,11 +2,11 @@
 // AYAZ PA - PINE SCREENER SURUMU (TradingView "Pine Tarayici" ile tum TRY paritelerini tarar)
 // Kullanim: TradingView > Taraycilar > Pine Tarayici. Izleme listesi olarak tum BINANCE TRY paritelerini sec,
 // gosterge olarak bu scripti sec, zaman dilimi 1 saat. "Durum" sutunu: 2 = YENI AL, 1 = pozisyonda, 0 = yok.
-// Kural robotla ayni: 20 gunluk zirve kirilimi + BTC rejimi + giris korumasi + kirilim kalitesi, stop 4 ATR, iz suren stop 12 ATR.
+// Kural robotla ayni: 20 gunluk zirve kirilimi + BTC rejimi + giris korumasi + kirilim kalitesi, stop 4 ATR, iz suren stop 16 ATR.
 // Yatirim tavsiyesi degildir.
 indicator("Ayaz PA Screener", overlay = true)
 
-minQ = input.int(1, "En dusuk kalite (0=hepsi, 1=B, 2=A)", minval = 0, maxval = 2)
+minQ = input.int(0, "En dusuk kalite (0=hepsi, 1=B, 2=A)", minval = 0, maxval = 2)
 btcS = input.symbol("BINANCE:BTCUSDT", "BTC (rejim)")
 
 btcOk  = request.security(btcS, "D", close[1] > ta.sma(close, 50)[1], lookahead = barmerge.lookahead_on)
@@ -33,7 +33,7 @@ if not na(st) and low <= st
     ent  := na
 else if not na(st)
     best := math.max(best, high)
-    st   := math.max(st, best - 12 * a)
+    st   := math.max(st, best - 16 * a)
     state := 1
 if na(st) and close > hh and btcOk and guard and q >= minQ
     st    := close - 4 * a
