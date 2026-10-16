@@ -930,6 +930,13 @@
     return best ? best[1] : 0;
   }
   // c1h: kapanmış 1s mumlar (artan). opts: { btcD1, d1 (seviye yaklaşımı için), fee, slip, N, atrStop, trail }
+  // Giriş koruması (engines.js GUARD ile aynı eşikler; 303 TRY + 18 coin testlerinde kötü çıkan girişler)
+  function trendGuard(c, i, riskPct) {
+    if (riskPct >= 6) return `stop çok uzak (%${riskPct.toFixed(1)})`;
+    if (i >= 24 && c[i].c / c[i - 24].c - 1 >= 0.10) return `son 24 saatte %${((c[i].c / c[i - 24].c - 1) * 100).toFixed(0)} yükseldi: geç kalındı, geri çekilme bekle`;
+    if (i >= 168 && c[i].c / c[i - 168].c - 1 >= 0.40) return `son 7 günde %${((c[i].c / c[i - 168].c - 1) * 100).toFixed(0)} yükseldi: geç kalındı`;
+    return null;
+  }
   function trend(c1h, opts = {}) {
     const o = Object.assign({}, TREND, opts), n = c1h.length, A = atr(c1h), fee = (o.fee ?? 0) / 100, slip = (o.slip ?? 0) / 100;
     const reg = o.btcD1 && o.btcD1.length >= 30 ? btcRegimeMap(o.btcD1, Math.min(o.btcN, o.btcD1.length)) : null;   // 50 günden az veri varsa (ör. Crypto.com) eldeki kadar
@@ -949,7 +956,7 @@
       }
       if (!pos && i < n - 1 && hh[i] != null && b.c > hh[i] && regimeAt(reg, b.t + 36e5) === 1) {
         const e = c1h[i + 1].o * (1 + slip), stop = b.c - o.atrStop * A[i];
-        if (e > stop) pos = { t: c1h[i + 1].t, sigT: b.t, level: hh[i], e, stop, stop0: stop, r: e - stop, best: e, atr: A[i] };
+        if (e > stop && !(o.guard !== false && trendGuard(c1h, i, (b.c - stop) / b.c * 100))) pos = { t: c1h[i + 1].t, sigT: b.t, level: hh[i], e, stop, stop0: stop, r: e - stop, best: e, atr: A[i] };
       }
     }
     const last = c1h[n - 1], a = A[n - 1];
@@ -980,6 +987,7 @@
     const above = brk != null && last.c > brk, fresh = above && (!approx || prevC == null || prevC <= brk);
     if (openT) { decision = 'POZİSYONDA'; why = openT.approx ? `Sinyal yaklaşık ${new Date(openT.sigT).toISOString().slice(5, 10)} tarihinde (günlük veriden tahmin); iz süren stop ≈ ${fmtP(openT.stop)}.` : `Alım sinyali ${new Date(openT.sigT + 36e5).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} (TR saati) geldi. Stop şu an ${fmtP(openT.stop)}.`; }
     else if (reg && regNow !== 1) { decision = 'UZAK DUR'; why = 'BTC günlük kapanışı 50 günlük ortalamanın altında: piyasa rejimi zayıf, yeni alım yok.'; }
+    else if (fresh && o.guard !== false && trendGuard(c1h, n - 1, o.atrStop * a / last.c * 100)) { decision = 'BEKLE'; why = `Kırılım var ama alım yok: ${trendGuard(c1h, n - 1, o.atrStop * a / last.c * 100)}.`; }
     else if (fresh) { decision = 'AL'; why = `1s kapanış 20 günlük zirveyi (${fmtP(brk)}) kırdı.`; }
     else if (above) { decision = 'KIRILIM YAKIN'; why = approx ? 'Fiyat 20 günlük zirvenin üstünde; önceki sinyal Binance geçmişiyle kontrol edilmeli.' : `Kırılım ${fmtP(brk)} üstünde ama fiyat ${((last.c - brk) / a).toFixed(1)} ATR uzaklaştı: kovalamayın, yeni zirve kapanışı bekleyin.`; }
     else if (level != null && level - last.c <= o.nearAtr * a) { decision = 'KIRILIM YAKIN'; why = `Fiyat 20 günlük zirveye %${((level / last.c - 1) * 100).toFixed(2)} uzakta. 1s kapanış ${fmtP(level)} üstünde olursa AL.`; }

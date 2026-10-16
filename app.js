@@ -326,7 +326,11 @@
       row.decision = 'POZİSYONDA'; row.status = 'AÇIK'; row.entry = o.e; row.stop = o.stop; row.stop0 = o.stop0; row.openR = o.R; row.sigT = o.sigT; row.trailD = tr.atr ? ENG.EXIT.kt * tr.atr : null;
       row.why = `Motor kurulumu (${o.setups.join(', ')}) ${new Date(o.sigT + 36e5).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} sinyali; stop ${fp(o.stop)}.`;
       row.score = 300 + Math.min(99, (o.R || 0) * 10); row.src = 'motor';
-    } else row.src = 'trend';
+    } else {
+      row.src = 'trend';
+      const bl = eng && eng.blocked ? eng.blocked.find(x => x.side === 1) : null;
+      if (bl && row.decision !== 'POZİSYONDA' && row.decision !== 'AL') { row.decision = 'BEKLE'; row.status = 'BEKLE'; row.why = `Motor kurulumu (${bl.setups.map(x => x.name).join(' + ')}) çıktı ama alım yok: ${bl.reason}.`; row.score = Math.max(row.score || 0, 60); }
+    }
     if (row.decision === 'AL' && row.src === 'trend') row.why = 'Trend kırılımı: ' + row.why;
     return row;
   }
@@ -348,7 +352,7 @@
         const h = await trendHist(r.sym, 1000, w => $('#scanInfo').textContent = `Doğrulama: Twelve Data dakika sınırı, ${w} sn bekleniyor…`);
         if (h.length < PA.TREND.N + 2) continue;
         const tr = PA.trend(h, trendOpts(r.sym, btcD1));
-        const eng = ENG.scanNow(h, { btcReg: regFn(btcD1), longOnly: !S.short, history: true, from: h[Math.max(0, h.length - 24 * 30)].t });
+        const eng = ENG.scanNow(h, { btcReg: regFn(btcD1), btc7: ENG.btc7Fn(btcD1), longOnly: !S.short, history: true, from: h[Math.max(0, h.length - 24 * 30)].t });
         const k = out.indexOf(r); if (k >= 0) out[k] = buildRow(r, tr, eng, h[h.length - 1].c, true);
         n++;
       } catch (e) { if (/izin|bağlayıcı|connector/i.test(e.message)) { tdState = 'off'; break; } }
@@ -377,7 +381,7 @@
       const uni = await universe(S.market, S.universe);
       if (!uni.length) throw new Error('Coin listesi boş geldi');
       $('#scanInfo').textContent = `${uni.length} parite bulundu${S.minVol ? ` (günlük hacim ${fmtUsd(S.minVol)} üstü)` : ''}. Önce BTC rejimi okunuyor…`;
-      const btcD1 = await getBtcD1(), btcReg = regFn(btcD1);
+      const btcD1 = await getBtcD1(), btcReg = regFn(btcD1), btc7 = ENG.btc7Fn(btcD1);
       fillSymList(uni.map(u => u.sym));
       const out = []; let done = 0, fails = 0;
       const q = uni.slice();
@@ -385,12 +389,14 @@
         while (q.length) {
           const u = q.shift();
           try {
-            const [b, d, f] = await Promise.all([klines(u.sym, '1h', 1000), ART ? klines(u.sym, '1D', 60) : Promise.resolve(null), ART ? klines(u.sym, '4h', 60) : Promise.resolve(null)]);
+            const [b, d, f, dAge] = await Promise.all([klines(u.sym, '1h', 1000), ART ? klines(u.sym, '1D', 60) : Promise.resolve(null), ART ? klines(u.sym, '4h', 60) : Promise.resolve(null), ART ? Promise.resolve(null) : klines(u.sym, '1D', 400).catch(() => null)]);
             const c1h = closed(b); if (c1h.length < 30) { done++; continue; }
             const d1 = d ? doneDays(d) : null;
             const tr = PA.trend(c1h, trendOpts(u.sym, btcD1, d1));
-            const eng = ENG.scanNow(c1h, { btcReg, c4: f ? closed(f) : null, d1, longOnly: !S.short, history: !ART });
-            out.push(buildRow(u, tr, eng, b[b.length - 1].c, !ART));
+            const eng = ENG.scanNow(c1h, { btcReg, btc7, c4: f ? closed(f) : null, d1, longOnly: !S.short, history: !ART });
+            const row = buildRow(u, tr, eng, b[b.length - 1].c, !ART);
+            if (dAge) { row.ageDays = dAge.length; if (row.ageDays < 365 && (row.decision === 'AL' || row.decision === 'SAT (short)')) { Object.assign(row, { decision: 'BEKLE', status: 'BEKLE', why: `Yeni coin (${row.ageDays} günlük): yeni listelenen coinlerde robot testte zarar etti, alım yok.`, score: 50, motor: null }); } }
+            out.push(row);
           } catch { fails++; }
           done++;
           $('#prog').style.width = (done / uni.length * 100) + '%';
@@ -714,11 +720,11 @@
     try {
       const h = await trendHist(sym, 1000, w => { if ($('#trWait')) $('#trWait').textContent = `Twelve Data dakika sınırı: ${w} sn bekleniyor…`; }, true);
       const need = isBist(sym) ? 200 : PA.TREND.N + 2;
-      if (h.length >= need) return { tr: PA.trend(h, trendOpts(sym, btcD1)), eng: ENG.scanNow(h, { btcReg: isBist(sym) ? null : regFn(btcD1), filter: isBist(sym) ? false : undefined, longOnly: !S.short, history: true }), exact: true, bars: h.length };
+      if (h.length >= need) return { tr: PA.trend(h, trendOpts(sym, btcD1)), eng: ENG.scanNow(h, { btcReg: isBist(sym) ? null : regFn(btcD1), btc7: isBist(sym) ? null : ENG.btc7Fn(btcD1), filter: isBist(sym) ? false : undefined, longOnly: !S.short, history: true }), exact: true, bars: h.length };
     } catch {}
     const [b, dd, f] = await Promise.all([klines(sym, '1h', 1000), klines(sym, '1D', 60), ART ? klines(sym, '4h', 60) : Promise.resolve(null)]);
     const h = closed(b), d1 = doneDays(dd);
-    return { tr: PA.trend(h, trendOpts(sym, btcD1, d1)), eng: ENG.scanNow(h, { btcReg: regFn(btcD1), c4: f ? closed(f) : null, d1, longOnly: !S.short, history: h.length > 200 }), exact: h.length >= PA.TREND.N + 2, bars: h.length };
+    return { tr: PA.trend(h, trendOpts(sym, btcD1, d1)), eng: ENG.scanNow(h, { btcReg: regFn(btcD1), btc7: ENG.btc7Fn(btcD1), c4: f ? closed(f) : null, d1, longOnly: !S.short, history: h.length > 200 }), exact: h.length >= PA.TREND.N + 2, bars: h.length };
   }
   const deadCoin = d => d.tr && d.tr.tr && d.tr.tr.atr && d.tr.tr.riskPct != null && d.tr.tr.riskPct < MIN_RISK;
   function motorCard(d) {
@@ -730,12 +736,12 @@
     const hist = (E.history || []).slice(-6).reverse();
     const pc = (a, b) => ((a / b - 1) * 100).toFixed(2) + '%';
     return `<div class="summary">
-      <div class="stage-h"><h3>Motor kurulumları</h3><span class="pill ${sig ? 'good' : 'neutral'}">${sig ? (sig.side === 1 ? 'AL' : 'SAT (short)') : 'Kurulum yok'}</span></div>
+      <div class="stage-h"><h3>Motor kurulumları</h3><span class="pill ${sig ? 'good' : E.blocked && E.blocked.length ? 'warn' : 'neutral'}">${sig ? (sig.side === 1 ? 'AL' : 'SAT (short)') : E.blocked && E.blocked.length ? 'BEKLE' : 'Kurulum yok'}</span></div>
       ${sig ? `<p class="headline">${sig.setups.map(x => esc(x.name)).join(' + ')}</p>
         <p class="mute" style="margin:0;font-size:.85rem">Çalışan motorlar: ${sig.setups.flatMap(x => x.eng).filter((v, i, a) => a.indexOf(v) === i).map(k => esc(ENG.EN[k])).join(' · ')}</p>
         <div class="levels">${lv('Giriş (şimdi)', fp(sig.entry))}${lv('STOP', fp(sig.stop) + ` <small class="mute">${sig.side === 1 ? '−' : '+'}${sig.riskPct.toFixed(2)}%</small>`, 'dn')}${lv('AL bölgesi', (z => fp(z[0]) + ' – ' + fp(z[1]))(buyZone(sig.entry, sig.trailPct / 100 * sig.entry / ENG.EXIT.kt, sig.side === -1)))}</div>
         <div><b style="font-size:.9rem">SAT merdiveni</b> <span class="mute" style="font-size:.8rem">· sabit hedef yok; fiyat ${sig.side === 1 ? 'yükseldikçe' : 'düştükçe'} stopu çek, stopa gelince sat</span>${ladderTable(ladder(sig.entry, sig.stop, sig.trailPct / 100 * sig.entry, sig.entry, sig.side === -1), sig.side === -1)}</div>`
-        : '<p class="mute" style="margin:0">Son kapanan 1s mumda hiçbir kurulumun bütün motorları aynı anda çalışmadı.</p>'}
+        : (E.blocked && E.blocked.length ? `<p class="headline">${E.blocked[0].setups.map(x => esc(x.name)).join(' + ')}</p><p class="note" style="margin:0;border-color:var(--warn)"><b>Alım yok:</b> ${esc(E.blocked[0].reason)}. Testlerde bu durumdaki sinyaller ortalamada zarar ettirdi.</p>` : '<p class="mute" style="margin:0">Son kapanan 1s mumda hiçbir kurulumun bütün motorları aynı anda çalışmadı.</p>')}
       <details><summary class="mute">Motorların şu anki durumu</summary><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:8px">${engList(E.rowsL, 'Yükseliş (long) tarafı')}${S.short ? engList(E.rowsS, 'Düşüş (short) tarafı') : ''}</div></details>
       ${hist.length ? `<details><summary class="mute">Bu coindeki son motor sinyalleri</summary><div class="tblwrap" style="margin-top:8px"><table><thead><tr><th class="l">Sinyal</th><th class="l">Kurulum</th><th>Giriş</th><th>Çıkış / şimdi</th><th>%</th><th>R</th></tr></thead><tbody>${hist.map(t => `<tr><td class="l">${dt(t.sigT + 36e5)}</td><td class="t l">${t.side === 1 ? '' : 'Short · '}${esc(t.setups.join(', '))}</td><td>${fp(t.e)}</td><td>${fp(t.exitPx)}</td><td class="${t.R >= 0 ? 'up' : 'dn'}">${t.side === 1 ? pc(t.exitPx, t.e) : pc(t.e, t.exitPx)}</td><td class="${t.R >= 0 ? 'up' : 'dn'}">${t.R.toFixed(2)}${t.open ? ' (açık)' : ''}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
     </div>`;
@@ -1036,7 +1042,7 @@
     const c = await loadTrendHist(sym, days);
     const btc = isBist(sym) ? null : await getBtcD1();
     const o = btOpts();
-    const r = BT.runMotor(c, { btcReg: btc ? regFn(btc) : null, filter: isBist(sym) ? false : undefined, longOnly: isBist(sym) || !o.allowShort }, { capital: o.capital, riskPct: o.riskPct, commission: o.commission, slippage: o.slippage });
+    const r = BT.runMotor(c, { btcReg: btc ? regFn(btc) : null, btc7: btc ? ENG.btc7Fn(btc) : null, filter: isBist(sym) ? false : undefined, longOnly: isBist(sym) || !o.allowShort }, { capital: o.capital, riskPct: o.riskPct, commission: o.commission, slippage: o.slippage });
     r.c = c; return r;
   }
   async function runTrendBT(sym, days) {

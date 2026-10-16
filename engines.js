@@ -176,10 +176,10 @@
   const SETUPS = [
     { id: 'L1', side: 1, name: 'Hacimli yapı kırılımı', eng: ['vol2', 'bos', 'engulf'] },
     { id: 'L2', side: 1, name: 'Güçlü mumla karakter değişimi', eng: ['big', 'btc', 'choch'] },
-    { id: 'L3', side: 1, name: 'Kırılım sonrası Asya devamı', eng: ['rsi70', 'sb24', 'asia'] },
-    { id: 'L4', side: 1, name: 'Zirvede momentum mumu', eng: ['near20', 'rsi70', 'big'] },
+    { id: 'L3', side: 1, name: 'Kırılım sonrası Asya devamı', eng: ['rsi70', 'sb24', 'asia'], off: true },   // 303 TRY paritesi + 18 coin testinde eksi: kapalı
+    { id: 'L4', side: 1, name: 'Zirvede momentum mumu', eng: ['near20', 'rsi70', 'big'], off: true },
     { id: 'L5', side: 1, name: 'Rejimle momentum', eng: ['rsi70', 'big', 'btc'] },
-    { id: 'L6', side: 1, name: 'Hacimli geri test', eng: ['rsi60', 'vol2', 'sb24'] },
+    { id: 'L6', side: 1, name: 'Hacimli geri test', eng: ['rsi60', 'vol2', 'sb24'], off: true },
     { id: 'S1', side: -1, name: 'NY seansında hacimli dip kırılımı', eng: ['near20', 'vol2', 'ny'] },
     { id: 'S2', side: -1, name: 'Düşen 4s yapıda NY dip testi', eng: ['near20', 'hhhl4', 'ny'] },
     { id: 'S3', side: -1, name: 'NY aşırı satışta güçlü satış mumu', eng: ['rsi70', 'big', 'ny'] },
@@ -190,7 +190,23 @@
   // Varsayılan filtre: long kurulumlar yalnız BTC rejimi olumluyken (testte en sağlam sonuç bu)
   const DEFAULT_FILTER = (r, side) => side === 1 ? r.btc === 1 : true;
   const filt = opts => opts.filter === false ? null : (opts.filter || DEFAULT_FILTER);
-  const matchSetups = (r, side) => r ? SETUPS.filter(s => s.side === side && s.eng.every(k => E[k](r))) : [];
+  const matchSetups = (r, side) => r ? SETUPS.filter(s => !s.off && s.side === side && s.eng.every(k => E[k](r))) : [];
+  // GİRİŞ KORUMASI (geç kalınmış / riskli girişleri ele): 303 Binance TRY paritesi (2025-09 → 2026-10) ve 18 büyük coin (2020 → 2026)
+  // testlerinin İKİSİNDE de bu durumlardaki sinyaller ortalamadan belirgin kötü çıktı.
+  const GUARD = { maxRisk: 6, max24: 0.10, max168: 0.40, maxBtc7: 0.10 };
+  function guard(c, i, riskPct, btc7) {
+    if (riskPct >= GUARD.maxRisk) return `stop çok uzak (%${riskPct.toFixed(1)}); risk/ödül bozuk`;
+    if (i >= 24 && c[i].c / c[i - 24].c - 1 >= GUARD.max24) return `son 24 saatte %${((c[i].c / c[i - 24].c - 1) * 100).toFixed(0)} yükseldi: geç kalındı, geri çekilme bekle`;
+    if (i >= 168 && c[i].c / c[i - 168].c - 1 >= GUARD.max168) return `son 7 günde %${((c[i].c / c[i - 168].c - 1) * 100).toFixed(0)} yükseldi: geç kalındı`;
+    if (btc7 != null && btc7 >= GUARD.maxBtc7) return `BTC son 7 günde %${(btc7 * 100).toFixed(0)} yükseldi: piyasa aşırı ısınmış`;
+    return null;
+  }
+  // BTC günlük mumlarından 7 günlük getiri fonksiyonu (önceki tamamlanmış güne göre; geleceği görmez)
+  function btc7Fn(d1) {
+    if (!d1 || d1.length < 10) return null;
+    const m = new Map(d1.map(x => [Math.floor(x.t / 864e5) * 864e5, x.c]));
+    return t => { const d = Math.floor(t / 864e5) * 864e5 - 864e5, a = m.get(d), b = m.get(d - 7 * 864e5); return a && b ? a / b - 1 : null; };
+  }
   // Bir mumdaki tüm motorların durumu (ekranda göstermek için)
   const engineState = r => r ? Object.keys(E).map(k => ({ k, name: EN[k], on: !!E[k](r) })) : [];
 
@@ -230,7 +246,7 @@
         }
         if (!pos && i < c.length - 1 && (opts.from == null || b.t >= opts.from)) {
           const m = matchSetups(rows[i], side);
-          if (m.length && (!filt(opts) || filt(opts)(rows[i], side))) { const e = c[i + 1].o * (1 + slip), st = e - EXIT.ks * rows[i].atr; pos = { i: i + 1, t: c[i + 1].t, sigT: b.t, e, st, st0: st, r: e - st, best: e, setups: m.map(s => s.id) }; }
+          if (m.length && (!filt(opts) || filt(opts)(rows[i], side)) && !(side === 1 && opts.guard !== false && guard(c, i, EXIT.ks * rows[i].atr / c[i].c * 100, opts.btc7 ? opts.btc7(b.t) : null))) { const e = c[i + 1].o * (1 + slip), st = e - EXIT.ks * rows[i].atr; pos = { i: i + 1, t: c[i + 1].t, sigT: b.t, e, st, st0: st, r: e - st, best: e, setups: m.map(s => s.id) }; }
         }
       }
       if (pos) { const last = c[c.length - 1]; trades.push(fin(pos, side, null, last.c, (last.c - pos.e - (pos.e + last.c) * fee) / pos.r, true, 'Açık')); }
@@ -244,19 +260,21 @@
   }
   // Son kapanmış mumda sinyal + açık pozisyon durumu
   function scanNow(c1h, opts = {}) {
-    const P = prepSides(c1h, opts), n = c1h.length, out = [];
+    const P = prepSides(c1h, opts), n = c1h.length, out = [], blocked = [];
     for (const side of [1, -1]) {
       if (side === -1 && opts.longOnly) continue;
       const { c, rows } = side === 1 ? P.L : P.S, r = rows[n - 1];
       const m = matchSetups(r, side), F = filt(opts);
       if (m.length && (!F || F(r, side))) {
         const a = r.atr, ci = c[n - 1].c, stI = ci - EXIT.ks * a, e = c1h[n - 1].c;
+        const g = side === 1 && opts.guard !== false ? guard(c, n - 1, EXIT.ks * a / ci * 100, opts.btc7 ? opts.btc7(c[n - 1].t) : null) : null;
+        if (g) { blocked.push({ side, setups: m, reason: g }); continue; }
         out.push({ side, setups: m, engines: engineState(r), entry: e, stop: side === 1 ? stI : 1 / stI, riskPct: EXIT.ks * a / ci * 100, trailPct: EXIT.kt * a / ci * 100, strength: m.length, t: c1h[n - 1].t });
       }
     }
     const hist = opts.history ? simulate(c1h, { ...opts, prep: P }) : null;
-    return { signals: out, history: hist, open: hist ? hist.filter(t => t.open) : [], rowsL: P.L.rows[n - 1], rowsS: P.S.rows[n - 1] };
+    return { signals: out, blocked, history: hist, open: hist ? hist.filter(t => t.open) : [], rowsL: P.L.rows[n - 1], rowsS: P.S.rows[n - 1] };
   }
 
-  root.ENG = { DEFAULT_FILTER, SETUPS, E, EN, EXIT, matchSetups, engineState, prepSides, simulate, scanNow, features, label, labelTrail, invert, agg, structEngine };
+  root.ENG = { GUARD, guard, btc7Fn, DEFAULT_FILTER, SETUPS, E, EN, EXIT, matchSetups, engineState, prepSides, simulate, scanNow, features, label, labelTrail, invert, agg, structEngine };
 })(typeof window !== 'undefined' ? window : globalThis);
