@@ -1,0 +1,55 @@
+//@version=5
+// AYAZ PA - PINE SCREENER SURUMU (TradingView "Pine Tarayici" ile tum TRY paritelerini tarar)
+// Kullanim: TradingView > Taraycilar > Pine Tarayici. Izleme listesi olarak tum BINANCE TRY paritelerini sec,
+// gosterge olarak bu scripti sec, zaman dilimi 1 saat. "Durum" sutunu: 2 = YENI AL, 1 = pozisyonda, 0 = yok.
+// Kural robotla ayni: 20 gunluk zirve kirilimi + BTC rejimi + giris korumasi + kirilim kalitesi, stop 4 ATR, iz suren stop 12 ATR.
+// Yatirim tavsiyesi degildir.
+indicator("Ayaz PA Screener", overlay = true)
+
+minQ = input.int(1, "En dusuk kalite (0=hepsi, 1=B, 2=A)", minval = 0, maxval = 2)
+btcS = input.symbol("BINANCE:BTCUSDT", "BTC (rejim)")
+
+btcOk  = request.security(btcS, "D", close[1] > ta.sma(close, 50)[1], lookahead = barmerge.lookahead_on)
+a      = ta.atr(14)
+hh     = ta.highest(high, 480)[1]
+volAvg = ta.sma(volume, 480)[1]
+rv     = volAvg > 0 ? volume / volAvg : 0
+rng    = high - low
+s840   = math.sum(rng, 840)[1]
+s120   = math.sum(rng, 120)[1]
+sq     = (s840 - s120) > 0 ? (s120 / 120) / ((s840 - s120) / 720) : 1.0
+q      = (rv >= 3 ? 1 : 0) + (sq < 0.9 ? 1 : 0)
+riskP  = 4 * a / close * 100
+guard  = riskP >= 1 and riskP < 6 and close / close[24] - 1 < 0.10 and close / close[168] - 1 < 0.40
+
+var float st   = na
+var float best = na
+var float ent  = na
+var float lvl  = na
+state = 0
+if not na(st) and low <= st
+    st   := na
+    best := na
+    ent  := na
+else if not na(st)
+    best := math.max(best, high)
+    st   := math.max(st, best - 12 * a)
+    state := 1
+if na(st) and close > hh and btcOk and guard and q >= minQ
+    st    := close - 4 * a
+    best  := close
+    ent   := close
+    lvl   := hh
+    state := 2
+
+// Tarayici sutunlari (plot degerleri)
+plot(state, "Durum (2=YENI AL, 1=pozisyonda)", display = display.data_window)
+plot(q, "Kalite (2=A, 1=B)", display = display.data_window)
+plot(state > 0 ? st : na, "STOP", color = color.red, style = plot.style_linebr, linewidth = 2)
+plot(state == 2 ? lvl : na, "AL bolgesi alt", display = display.data_window)
+plot(state == 2 ? lvl + 0.5 * a : na, "AL bolgesi ust", display = display.data_window)
+plot(state > 0 ? (close - st) / close * 100 : na, "Stop uzakligi %", display = display.data_window)
+plot(hh, "20 gunluk zirve", color = color.new(color.orange, 40), style = plot.style_stepline)
+plotshape(state == 2, "AL", shape.triangleup, location.belowbar, color = q >= 2 ? color.green : color.teal, size = size.small, text = "AL")
+
+alertcondition(state == 2, "Ayaz PA YENI AL", "AYAZ PA YENI AL {{ticker}} fiyat {{close}}")
