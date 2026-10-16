@@ -161,7 +161,7 @@ supportHold      = not na(lastSupport)    and low  <= lastSupport    + atr * 0.4
 resistanceReject = not na(lastResistance) and high >= lastResistance - atr * 0.40 and close < lastResistance
 
 //====================================================
-// 6) SWEEP WARNINGS — SKOR'U ETKILEMEZ, SATIN TETIKLEMEZ
+// 6) SWEEP WARNINGS -- SKOR'U ETKILEMEZ, SATIN TETIKLEMEZ
 //====================================================
 prevHighRange = ta.highest(high[1], sweepLookback)
 prevLowRange  = ta.lowest(low[1],  sweepLookback)
@@ -182,7 +182,7 @@ sellSideSweep =
 // 7) MOMENTUM CONFIRMATIONS
 // Degisiklik ozeti:
 //   - macdBuyOk/macdSellOk: "or" yerine net sinyal hatti pozisyonu
-//   - dmiBuyOk/dmiSellOk:   "or" yerine "and" — hem yon hem ADX gucu zorunlu
+//   - dmiBuyOk/dmiSellOk:   "or" yerine "and" -- hem yon hem ADX gucu zorunlu
 //   - long_score/short_score: 0-4 puan sistemine gec
 //====================================================
 rsiBuyOk  = rsi >= rsiBuyMin  and rsi <= rsiBuyMax  and rsi > rsi[1]
@@ -192,13 +192,13 @@ rsiSellOk = rsi >= rsiSellMin and rsi < rsi[1]
 macdBuyOk  = macdLine > macdSigLine and macdHist > macdHist[1]
 macdSellOk = macdLine < macdSigLine and macdHist < macdHist[1]
 
-// DMI: Hem yön hem güç birlikte zorunlu
+// DMI: Hem yon hem guc birlikte zorunlu
 dmiBuyOk  = plusDI  > minusDI and adx >= adxMin
 dmiSellOk = minusDI > plusDI  and adx >= adxMin
 
 confirmed = not confirmOnClose or barstate.isconfirmed
 
-// Momentum skoru 0–4: her pillar 1 puan
+// Momentum skoru 0-4: her pillar 1 puan
 long_score  = (rsiBuyOk  ? 1 : 0) + (macdBuyOk  ? 1 : 0) + (dmiBuyOk  ? 1 : 0) + (volOk ? 1 : 0)
 short_score = (rsiSellOk ? 1 : 0) + (macdSellOk ? 1 : 0) + (dmiSellOk ? 1 : 0) + (volOk ? 1 : 0)
 
@@ -206,10 +206,10 @@ longScoreOk  = long_score  >= minLongScore
 shortScoreOk = short_score >= minShortScore
 
 //====================================================
-// 8) AL BAĞLAMLARI
+// 8) AL BAGLAMLARI
 //====================================================
 
-// En güvenilir setup — orijinal sert koşullar korundu
+// En guvenilir setup -- orijinal sert kosullar korundu
 al_pullback =
      confirmed and
      trendBull and
@@ -221,7 +221,7 @@ al_pullback =
      dmiBuyOk and
      volOk
 
-// Kanal orta geri alımı — skor kapısı eklendi
+// Kanal orta geri alimi -- skor kapisi eklendi
 al_reclaim =
      confirmed and
      trendBull and
@@ -231,7 +231,7 @@ al_reclaim =
      macdBuyOk and
      longScoreOk
 
-// Destek tutunumu — yatay piyasa filtresi + skor kapısı eklendi
+// Destek tutunumu -- yatay piyasa filtresi + skor kapisi eklendi
 al_support =
      confirmed and
      not trendBear and
@@ -242,7 +242,7 @@ al_support =
      macdBuyOk and
      longScoreOk
 
-// Kanalüstü kırılım — sahte kırılım için hacim eşiği artırıldı
+// Kanalustu kirilim -- sahte kirilim icin hacim esigi artirildi
 al_breakout =
      confirmed and
      trendBull and
@@ -256,10 +256,10 @@ al_breakout =
 rawAL = al_pullback or al_reclaim or al_support or al_breakout
 
 //====================================================
-// 9) SAT / CIKIS / DIKKAT BAĞLAMLARI
+// 9) SAT / CIKIS / DIKKAT BAGLAMLARI
 //====================================================
 
-// Üst kanal / dirençten geri dönüş — skor kapısı eklendi
+// Ust kanal / direncten geri donus -- skor kapisi eklendi
 sat_upper_reject =
      confirmed and
      upperZone and
@@ -268,7 +268,7 @@ sat_upper_reject =
      bearishCandle and
      shortScoreOk
 
-// Tepe yorulması — yapısal bağlam teyidi eklendi
+// Tepe yorulmasi -- yapisal baglam teyidi eklendi
 sat_top_exhaustion =
      confirmed and
      nearUpper and
@@ -278,7 +278,7 @@ sat_top_exhaustion =
      macdSellOk and
      shortScoreOk
 
-// Kanal orta kaybı — yapısal, skor gerektirmez
+// Kanal orta kaybi -- yapisal, skor gerektirmez
 sat_basis_loss =
      confirmed and
      basisLose and
@@ -286,7 +286,7 @@ sat_basis_loss =
      macdSellOk and
      dmiSellOk
 
-// Alt kanal kırılımı — yapısal, skor gerektirmez
+// Alt kanal kirilimi -- yapisal, skor gerektirmez
 sat_channel_break =
      confirmed and
      breakdownDown and
@@ -294,7 +294,7 @@ sat_channel_break =
      minusDI > plusDI and
      volOk
 
-// Koruyucu çıkış — 21 EMA yerine 55 EMA (erken çıkış sorunu giderildi)
+// Koruyucu cikis -- 21 EMA yerine 55 EMA (erken cikis sorunu giderildi)
 sat_protective =
      confirmed and
      close   < emaMid and
@@ -336,7 +336,7 @@ if satSignal
     lastSatBar := bar_index
 
 //====================================================
-// 11) GÖRSELLER
+// 11) GORSELLER
 //====================================================
 plot(showEMAs ? emaFast  : na, "EMA 21",           color=color.new(color.teal,   0), linewidth=2)
 plot(showEMAs ? emaMid   : na, "EMA 55",           color=color.new(color.orange, 0), linewidth=2)
@@ -351,7 +351,7 @@ plot(showPivots ? lastResistance : na, "Son Direnc", color=color.new(color.red, 
 
 bgcolor(showBackground and inTrade ? color.new(color.green, 92) : na)
 
-// Sweep: plotshape ile gösterim (ticaret sinyali değil, yalnızca uyarı)
+// Sweep: plotshape ile gosterim (ticaret sinyali degil, yalnizca uyari)
 plotshape(
      showSweep and buySideSweep,
      title="BSL Sweep Uyarisi",
@@ -375,9 +375,9 @@ plotshape(
 )
 
 //====================================================
-// 12) TANISAL ETİKETLER
-// v1'den fark: plotshape(AL/SAT) kaldırıldı — her sinyal için 2 etiket
-// yerine tek label.new kullanılıyor. max_labels_count çok daha uzun dayanır.
+// 12) TANISAL ETIKETLER
+// v1'den fark: plotshape(AL/SAT) kaldirildi -- her sinyal icin 2 etiket
+// yerine tek label.new kullaniliyor. max_labels_count cok daha uzun dayanir.
 // Etiket metnine momentum skoru eklendi [x/4].
 //====================================================
 alReason =
