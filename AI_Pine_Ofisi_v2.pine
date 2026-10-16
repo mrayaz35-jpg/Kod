@@ -1,0 +1,448 @@
+//@version=6
+indicator("AI Pine Ofisi v2 - Trend Kanal Baglamli Canli AL/SAT", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=100)
+
+//====================================================
+// 1) INPUTS
+//====================================================
+groupCore = "1) Ana Sinyal Mantigi"
+confirmOnClose = input.bool(true,  "Sinyali Mum Kapanisinda Onayla",   group=groupCore)
+sameSideGap    = input.int(8,      "Ayni Yon Sinyal Min Bar Araligi",   minval=1, maxval=100, group=groupCore)
+alternateMode  = input.bool(true,  "Tek AL -> Tek SAT Sirali Calissin", group=groupCore)
+
+groupTrend = "2) Trend / Ortalama Baglami"
+emaFastLen  = input.int(21,  "EMA Kisa",  minval=2,  maxval=300, group=groupTrend)
+emaMidLen   = input.int(55,  "EMA Orta",  minval=5,  maxval=400, group=groupTrend)
+emaMacroLen = input.int(200, "EMA Makro", minval=20, maxval=600, group=groupTrend)
+
+groupChannel = "3) Trend Kanali"
+chanLen       = input.int(100,    "Regresyon Kanal Periyodu",     minval=20, maxval=500,  group=groupChannel)
+chanDevMult   = input.float(1.8,  "Standart Sapma Carpani",       minval=0.2, step=0.1,  group=groupChannel)
+chanAtrMult   = input.float(0.4,  "ATR Genislik Katkisi",         minval=0.0, step=0.1,  group=groupChannel)
+atrLen        = input.int(14,     "ATR Periyodu",                 minval=2,  maxval=100,  group=groupChannel)
+slopeLookback = input.int(5,      "Kanal Egim Bakisi",            minval=1,  maxval=50,   group=groupChannel)
+zoneAtr       = input.float(0.35, "Kanal Bolgesi ATR Toleransi",  minval=0.0, step=0.05, group=groupChannel)
+
+groupPivot = "4) Pivot / Destek Direnc"
+pivotLeft  = input.int(10,   "Pivot Sol Bar",          minval=2, maxval=100, group=groupPivot)
+pivotRight = input.int(1,    "Pivot Sag Teyit",        minval=1, maxval=10,  group=groupPivot)
+showPivots = input.bool(true,"Son Destek/Direnc Ciz",  group=groupPivot)
+
+groupMomentum = "5) Momentum / Guc"
+rsiLen        = input.int(14,    "RSI Periyodu",                  minval=2,  maxval=100, group=groupMomentum)
+rsiBuyMin     = input.float(35.0,"AL - RSI Alt Esik",             minval=1,  maxval=80,  step=0.5, group=groupMomentum)
+rsiBuyMax     = input.float(62.0,"AL - RSI Ust Esik",             minval=20, maxval=95,  step=0.5, group=groupMomentum)
+rsiSellMin    = input.float(62.0,"SAT - RSI Alt Esik",            minval=20, maxval=95,  step=0.5, group=groupMomentum)
+macdFast      = input.int(12,    "MACD Fast",                     minval=1,  maxval=100, group=groupMomentum)
+macdSlow      = input.int(26,    "MACD Slow",                     minval=2,  maxval=200, group=groupMomentum)
+macdSignal    = input.int(9,     "MACD Signal",                   minval=1,  maxval=100, group=groupMomentum)
+dmiLen        = input.int(14,    "DMI Periyodu",                  minval=2,  maxval=100, group=groupMomentum)
+adxSmooth     = input.int(14,    "ADX Smoothing",                 minval=2,  maxval=100, group=groupMomentum)
+adxMin        = input.float(18.0,"ADX Min Trend Gucu",            minval=5,  maxval=60,  step=0.5, group=groupMomentum)
+minLongScore  = input.int(2,     "Min AL Momentum Skoru (0-4)",   minval=0,  maxval=4,   group=groupMomentum)
+minShortScore = input.int(2,     "Min SAT Momentum Skoru (0-4)",  minval=0,  maxval=4,   group=groupMomentum)
+
+groupVolume = "6) Hacim"
+useVolumeFilter = input.bool(true,  "Hacim Teyidi Kullan",  group=groupVolume)
+volLen          = input.int(20,     "Hacim Ortalamasi",     minval=2, maxval=200, group=groupVolume)
+volMult         = input.float(1.20, "Hacim Carpani",        minval=0.1, step=0.05, group=groupVolume)
+
+groupSweep = "7) Sweep / Likidite Uyarisi"
+showSweep     = input.bool(true,"Sweep Uyarilarini Goster", group=groupSweep)
+sweepLookback = input.int(20,   "Sweep Lookback",           minval=5, maxval=100, group=groupSweep)
+
+groupView = "8) Gorsel"
+showEMAs       = input.bool(true, "EMA'lari Goster",              group=groupView)
+showChannel    = input.bool(true, "Trend Kanalini Goster",         group=groupView)
+showBackground = input.bool(true, "Pozisyon Arka Planini Goster",  group=groupView)
+showSignals    = input.bool(true, "AL/SAT Etiketlerini Goster",    group=groupView)
+
+//====================================================
+// 2) CORE SERIES
+//====================================================
+atr = ta.atr(atrLen)
+
+emaFast  = ta.ema(close, emaFastLen)
+emaMid   = ta.ema(close, emaMidLen)
+emaMacro = ta.ema(close, emaMacroLen)
+
+src       = hlc3
+basis     = ta.linreg(src, chanLen, 0)
+dev       = ta.stdev(src, chanLen)
+chanWidth = dev * chanDevMult + atr * chanAtrMult
+upper     = basis + chanWidth
+lower     = basis - chanWidth
+
+chanUp   = basis > basis[slopeLookback]
+chanDown = basis < basis[slopeLookback]
+
+emaBull = emaFast > emaMid and close > emaMacro
+emaBear = emaFast < emaMid and close < emaMacro
+
+trendBull = emaBull and (chanUp or close > basis)
+trendBear = emaBear and (chanDown or close < basis)
+
+rsi = ta.rsi(close, rsiLen)
+[macdLine, macdSigLine, _] = ta.macd(close, macdFast, macdSlow, macdSignal)
+[plusDI, minusDI, adx]     = ta.dmi(dmiLen, adxSmooth)
+
+volMA = ta.sma(volume, volLen)
+volOk = not useVolumeFilter or volume >= volMA * volMult
+
+//====================================================
+// 3) CANDLE CONTEXT
+//====================================================
+barRange  = math.max(high - low, syminfo.mintick)
+body      = math.abs(close - open)
+upperWick = high - math.max(open, close)
+lowerWick = math.min(open, close) - low
+
+bullBody = close > open
+bearBody = close < open
+
+strongBullClose = bullBody and close >= low + barRange * 0.65
+strongBearClose = bearBody and close <= low + barRange * 0.35
+
+bullEngulf =
+     bullBody and
+     close[1] < open[1] and
+     close >= open[1] and
+     open <= close[1]
+
+bearEngulf =
+     bearBody and
+     close[1] > open[1] and
+     close <= open[1] and
+     open >= close[1]
+
+hammer =
+     lowerWick >= body * 2.0 and
+     upperWick <= body * 1.0 and
+     close >= low + barRange * 0.60
+
+shootingStar =
+     upperWick >= body * 2.0 and
+     lowerWick <= body * 1.0 and
+     close <= high - barRange * 0.60
+
+bullishCandle = bullEngulf or hammer or strongBullClose
+bearishCandle = bearEngulf or shootingStar or strongBearClose
+
+//====================================================
+// 4) CHANNEL ZONES
+//====================================================
+nearLower = low  <= lower + atr * zoneAtr
+nearUpper = high >= upper - atr * zoneAtr
+
+pullbackZone = close <= basis and close >= lower - atr * zoneAtr
+upperZone    = close >= basis and close <= upper + atr * zoneAtr
+
+breakoutUp    = close > upper and close[1] <= upper[1]
+breakdownDown = close < lower and close[1] >= lower[1]
+
+basisReclaim = close > basis and close[1] <= basis[1]
+basisLose    = close < basis and close[1] >= basis[1]
+
+//====================================================
+// 5) PIVOT SUPPORT / RESISTANCE
+//====================================================
+pivotLowValue  = ta.pivotlow(low,  pivotLeft, pivotRight)
+pivotHighValue = ta.pivothigh(high, pivotLeft, pivotRight)
+
+var float lastSupport    = na
+var float lastResistance = na
+
+if not na(pivotLowValue)
+    lastSupport := pivotLowValue
+
+if not na(pivotHighValue)
+    lastResistance := pivotHighValue
+
+supportHold      = not na(lastSupport)    and low  <= lastSupport    + atr * 0.40 and close > lastSupport
+resistanceReject = not na(lastResistance) and high >= lastResistance - atr * 0.40 and close < lastResistance
+
+//====================================================
+// 6) SWEEP WARNINGS — SKOR'U ETKILEMEZ, SATIN TETIKLEMEZ
+//====================================================
+prevHighRange = ta.highest(high[1], sweepLookback)
+prevLowRange  = ta.lowest(low[1],  sweepLookback)
+
+buySideSweep =
+     showSweep and
+     high > prevHighRange and
+     close < prevHighRange and
+     bearishCandle
+
+sellSideSweep =
+     showSweep and
+     low < prevLowRange and
+     close > prevLowRange and
+     bullishCandle
+
+//====================================================
+// 7) MOMENTUM CONFIRMATIONS
+// Degisiklik ozeti:
+//   - macdBuyOk/macdSellOk: "or" yerine net sinyal hatti pozisyonu
+//   - dmiBuyOk/dmiSellOk:   "or" yerine "and" — hem yon hem ADX gucu zorunlu
+//   - long_score/short_score: 0-4 puan sistemine gec
+//====================================================
+rsiBuyOk  = rsi >= rsiBuyMin  and rsi <= rsiBuyMax  and rsi > rsi[1]
+rsiSellOk = rsi >= rsiSellMin and rsi < rsi[1]
+
+// MACD: Sinyal hattı pozisyonu (histogram gürültüsü kaldırıldı)
+macdBuyOk  = macdLine > macdSigLine
+macdSellOk = macdLine < macdSigLine
+
+// DMI: Hem yön hem güç birlikte zorunlu
+dmiBuyOk  = plusDI  > minusDI and adx >= adxMin
+dmiSellOk = minusDI > plusDI  and adx >= adxMin
+
+confirmed = not confirmOnClose or barstate.isconfirmed
+
+// Momentum skoru 0–4: her pillar 1 puan
+long_score  = (rsiBuyOk  ? 1 : 0) + (macdBuyOk  ? 1 : 0) + (dmiBuyOk  ? 1 : 0) + (volOk ? 1 : 0)
+short_score = (rsiSellOk ? 1 : 0) + (macdSellOk ? 1 : 0) + (dmiSellOk ? 1 : 0) + (volOk ? 1 : 0)
+
+longScoreOk  = long_score  >= minLongScore
+shortScoreOk = short_score >= minShortScore
+
+//====================================================
+// 8) AL BAĞLAMLARI
+//====================================================
+
+// En güvenilir setup — orijinal sert koşullar korundu
+al_pullback =
+     confirmed and
+     trendBull and
+     pullbackZone and
+     nearLower and
+     bullishCandle and
+     rsiBuyOk and
+     macdBuyOk and
+     dmiBuyOk and
+     volOk
+
+// Kanal orta geri alımı — skor kapısı eklendi
+al_reclaim =
+     confirmed and
+     trendBull and
+     basisReclaim and
+     bullishCandle and
+     rsi > rsi[1] and
+     macdBuyOk and
+     longScoreOk
+
+// Destek tutunumu — yatay piyasa filtresi + skor kapısı eklendi
+al_support =
+     confirmed and
+     not trendBear and
+     adx >= adxMin * 0.80 and
+     supportHold and
+     bullishCandle and
+     rsi > rsi[1] and
+     macdBuyOk and
+     longScoreOk
+
+// Kanalüstü kırılım — sahte kırılım için hacim eşiği artırıldı
+al_breakout =
+     confirmed and
+     trendBull and
+     breakoutUp and
+     strongBullClose and
+     plusDI > minusDI and
+     adx >= adxMin and
+     volume >= volMA * 1.30 and
+     volOk
+
+rawAL = al_pullback or al_reclaim or al_support or al_breakout
+
+//====================================================
+// 9) SAT / CIKIS / DIKKAT BAĞLAMLARI
+//====================================================
+
+// Üst kanal / dirençten geri dönüş — skor kapısı eklendi
+sat_upper_reject =
+     confirmed and
+     upperZone and
+     nearUpper and
+     resistanceReject and
+     bearishCandle and
+     shortScoreOk
+
+// Tepe yorulması — yapısal bağlam teyidi eklendi
+sat_top_exhaustion =
+     confirmed and
+     nearUpper and
+     (resistanceReject or high >= upper - atr * 0.20) and
+     bearishCandle and
+     rsi >= rsiSellMin and
+     macdSellOk and
+     shortScoreOk
+
+// Kanal orta kaybı — yapısal, skor gerektirmez
+sat_basis_loss =
+     confirmed and
+     basisLose and
+     strongBearClose and
+     macdSellOk and
+     dmiSellOk
+
+// Alt kanal kırılımı — yapısal, skor gerektirmez
+sat_channel_break =
+     confirmed and
+     breakdownDown and
+     strongBearClose and
+     minusDI > plusDI and
+     volOk
+
+// Koruyucu çıkış — 21 EMA yerine 55 EMA (erken çıkış sorunu giderildi)
+sat_protective =
+     confirmed and
+     close   < emaMid and
+     close[1] >= emaMid[1] and
+     strongBearClose and
+     (trendBear or macdSellOk)
+
+rawSAT = sat_upper_reject or sat_top_exhaustion or sat_basis_loss or sat_channel_break or sat_protective
+
+//====================================================
+// 10) SINYAL DURUM MAKINESI
+//====================================================
+var bool inTrade    = false
+var int  lastAlBar  = na
+var int  lastSatBar = na
+
+barsFromLastAL  = na(lastAlBar)  ? 100000 : bar_index - lastAlBar
+barsFromLastSAT = na(lastSatBar) ? 100000 : bar_index - lastSatBar
+
+canAL =
+     rawAL and
+     barsFromLastAL  >= sameSideGap and
+     (not alternateMode or not inTrade)
+
+canSAT =
+     rawSAT and
+     barsFromLastSAT >= sameSideGap and
+     (not alternateMode or inTrade)
+
+alSignal  = canAL
+satSignal = canSAT
+
+if alSignal
+    inTrade   := true
+    lastAlBar := bar_index
+
+if satSignal
+    inTrade    := false
+    lastSatBar := bar_index
+
+//====================================================
+// 11) GÖRSELLER
+//====================================================
+plot(showEMAs ? emaFast  : na, "EMA 21",           color=color.new(color.teal,   0), linewidth=2)
+plot(showEMAs ? emaMid   : na, "EMA 55",           color=color.new(color.orange, 0), linewidth=2)
+plot(showEMAs ? emaMacro : na, "EMA 200",          color=color.new(color.gray,   0), linewidth=2)
+
+plot(showChannel ? basis : na, "Trend Kanal Orta", color=color.new(color.white, 20), linewidth=2)
+plot(showChannel ? upper : na, "Trend Kanal Ust",  color=color.new(color.red,   20), linewidth=1)
+plot(showChannel ? lower : na, "Trend Kanal Alt",  color=color.new(color.lime,  20), linewidth=1)
+
+plot(showPivots ? lastSupport    : na, "Son Destek", color=color.new(color.lime, 55), style=plot.style_linebr, linewidth=2)
+plot(showPivots ? lastResistance : na, "Son Direnc", color=color.new(color.red,  55), style=plot.style_linebr, linewidth=2)
+
+bgcolor(showBackground and inTrade ? color.new(color.green, 92) : na)
+
+// Sweep: plotshape ile gösterim (ticaret sinyali değil, yalnızca uyarı)
+plotshape(
+     showSweep and buySideSweep,
+     title="BSL Sweep Uyarisi",
+     text="SWEEP",
+     style=shape.triangledown,
+     location=location.abovebar,
+     color=color.new(color.orange, 0),
+     textcolor=color.white,
+     size=size.tiny
+)
+
+plotshape(
+     showSweep and sellSideSweep,
+     title="SSL Sweep Uyarisi",
+     text="SWEEP",
+     style=shape.triangleup,
+     location=location.belowbar,
+     color=color.new(color.aqua, 0),
+     textcolor=color.white,
+     size=size.tiny
+)
+
+//====================================================
+// 12) TANISAL ETİKETLER
+// v1'den fark: plotshape(AL/SAT) kaldırıldı — her sinyal için 2 etiket
+// yerine tek label.new kullanılıyor. max_labels_count çok daha uzun dayanır.
+// Etiket metnine momentum skoru eklendi [x/4].
+//====================================================
+alReason =
+     al_pullback ? "AL: Kanal alt pullback + trend" :
+     al_reclaim  ? "AL: Kanal orta reclaim + ivme"  :
+     al_support  ? "AL: Destek tutunumu + mum"      :
+     al_breakout ? "AL: Ust kirilim + guclu hacim"  :
+     "AL"
+
+satReason =
+     sat_upper_reject   ? "SAT: Ust kanal/direnc reddi"   :
+     sat_top_exhaustion ? "SAT: Tepe yorulma + yapi"      :
+     sat_basis_loss     ? "SAT: Kanal orta kaybi"         :
+     sat_channel_break  ? "SAT: Alt kanal kirilimi"       :
+     sat_protective     ? "SAT: 55EMA koruyucu cikis"     :
+     "SAT"
+
+alScoreStr  = " [" + str.tostring(long_score)  + "/4]"
+satScoreStr = " [" + str.tostring(short_score) + "/4]"
+
+if showSignals and alSignal
+    label.new(
+         bar_index,
+         low,
+         alReason + alScoreStr,
+         style=label.style_label_up,
+         color=color.new(color.green, 0),
+         textcolor=color.white,
+         size=size.small
+    )
+
+if showSignals and satSignal
+    label.new(
+         bar_index,
+         high,
+         satReason + satScoreStr,
+         style=label.style_label_down,
+         color=color.new(color.red, 0),
+         textcolor=color.white,
+         size=size.small
+    )
+
+//====================================================
+// 13) ALARMLAR
+//====================================================
+alertcondition(
+     alSignal,
+     title="AI Pine Ofisi AL",
+     message="AI Pine Ofisi AL: {{ticker}} {{interval}} - trend kanal baglamli AL sinyali."
+)
+
+alertcondition(
+     satSignal,
+     title="AI Pine Ofisi SAT / Cikis",
+     message="AI Pine Ofisi SAT/Cikis: {{ticker}} {{interval}} - cikis/kar al/dikkat sinyali."
+)
+
+alertcondition(
+     buySideSweep,
+     title="AI Pine Ofisi BSL Sweep Uyarisi",
+     message="BSL Sweep Uyarisi: {{ticker}} {{interval}} - tek basina SAT degildir, teyit beklenir."
+)
+
+alertcondition(
+     sellSideSweep,
+     title="AI Pine Ofisi SSL Sweep Uyarisi",
+     message="SSL Sweep Uyarisi: {{ticker}} {{interval}} - tek basina AL degildir, teyit beklenir."
+)
