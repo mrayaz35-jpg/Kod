@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ayaz Price Action</title>
+<meta name="theme-color" content="#0e1416">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ayaz PA">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Düzen: üstte durum çubuğu, ortada tek sütun çalışma alanı, telefonda altta sekme çubuğu, masaüstünde üstte */
+:root{
+  --bg:#0e1416; --panel:#151d20; --panel2:#1b2529; --line:#26343a; --fg:#e4ebe8; --mute:#8a9b98;
+  --accent:#e8a33d; --good:#36b37e; --bad:#e5534b; --warn:#e8a33d; --info:#5aa9c9;
+  --good-bg:rgba(54,179,126,.14); --bad-bg:rgba(229,83,75,.14); --warn-bg:rgba(232,163,61,.15); --info-bg:rgba(90,169,201,.14);
+  --f-display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){--bg:#f3f5f2;--panel:#ffffff;--panel2:#eef1ed;--line:#d9dfda;--fg:#14201f;--mute:#5f6f6c;--accent:#b8740f;--good:#1f8a5c;--bad:#c93a33;--warn:#b8740f;--info:#2f7f9f;--good-bg:rgba(31,138,92,.12);--bad-bg:rgba(201,58,51,.11);--warn-bg:rgba(184,116,15,.13);--info-bg:rgba(47,127,159,.12);color-scheme:light}
+}
+:root[data-theme="light"]{--bg:#f3f5f2;--panel:#ffffff;--panel2:#eef1ed;--line:#d9dfda;--fg:#14201f;--mute:#5f6f6c;--accent:#b8740f;--good:#1f8a5c;--bad:#c93a33;--warn:#b8740f;--info:#2f7f9f;--good-bg:rgba(31,138,92,.12);--bad-bg:rgba(201,58,51,.11);--warn-bg:rgba(184,116,15,.13);--info-bg:rgba(47,127,159,.12);color-scheme:light}
+
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45}
+body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+@media (min-width:860px){body{padding-bottom:0}}
+button,input,select{font:inherit;color:inherit}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:.92em}
+.mute{color:var(--mute)}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* Üst çubuk */
+header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.bar{display:flex;align-items:center;gap:12px;padding-block:10px}
+.brand{font-family:var(--f-display);font-weight:700;font-size:1.3rem;letter-spacing:.01em;display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.brand b{color:var(--accent)}
+.conn{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--mute);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mute)}
+.dot.on{background:var(--good);box-shadow:0 0 0 3px var(--good-bg)}
+.dot.err{background:var(--bad)}
+.spacer{flex:1}
+nav.tabs{display:flex;gap:2px}
+nav.tabs button{background:none;border:0;padding:8px 12px;border-radius:6px;color:var(--mute);font-family:var(--f-display);font-weight:600;font-size:1rem;letter-spacing:.02em;cursor:pointer}
+nav.tabs button[aria-selected="true"]{color:var(--fg);background:var(--panel2)}
+@media (max-width:859px){
+  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border-top:1px solid var(--line);padding:6px max(8px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px));justify-content:space-around}
+  nav.tabs button{flex:1;font-size:.92rem;padding:10px 4px}
+}
+.btn{background:var(--accent);color:#1a1205;border:0;border-radius:6px;padding:9px 14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn.ghost{background:var(--panel2);color:var(--fg);border:1px solid var(--line)}
+.btn:disabled{opacity:.55;cursor:default}
+.btn:focus-visible,nav.tabs button:focus-visible,.chip:focus-visible,.row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+main{padding-block:16px 28px}
+section[hidden]{display:none}
+h2{font-family:var(--f-display);font-weight:700;font-size:1.35rem;margin:0;text-wrap:balance}
+h3{font-family:var(--f-display);font-weight:600;font-size:1.05rem;margin:0;letter-spacing:.02em}
+.lbl{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);font-weight:600}
+
+/* Tarayıcı kontrol satırı */
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:12px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field select,.field input{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-width:0}
+.progress{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin:6px 0 12px}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.status-line{display:flex;justify-content:space-between;gap:10px;font-size:.82rem;color:var(--mute);flex-wrap:wrap}
+
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;scrollbar-width:none}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 12px;font-size:.85rem;white-space:nowrap;cursor:pointer;color:var(--mute)}
+.chip[aria-pressed="true"]{border-color:var(--accent);color:var(--fg);background:var(--warn-bg)}
+.chip .c{font-family:var(--f-mono);font-size:.8em;margin-left:4px;opacity:.8}
+
+/* Sonuç listesi */
+.list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) 64px;gap:10px;align-items:center;padding:11px 14px;border-top:1px solid var(--line);cursor:pointer;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left;width:100%}
+.row:first-child{border-top:0}
+.row:hover{background:var(--panel2)}
+.sym{font-family:var(--f-display);font-weight:700;font-size:1.08rem;letter-spacing:.02em}
+.sym small{font-family:var(--f-body);font-weight:500;color:var(--mute);font-size:.72rem;margin-left:2px}
+.sub{font-size:.8rem;color:var(--mute);display:flex;gap:8px;flex-wrap:wrap}
+.pill{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:600;letter-spacing:.04em;white-space:nowrap}
+.pill.good{background:var(--good-bg);color:var(--good)} .pill.bad{background:var(--bad-bg);color:var(--bad)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)} .pill.neutral{background:var(--info-bg);color:var(--info)}
+.score{justify-self:end;text-align:right}
+.score b{font-family:var(--f-mono);font-size:1.15rem;display:block}
+.meter{height:4px;width:52px;background:var(--line);border-radius:2px;overflow:hidden;margin-left:auto}
+.meter i{display:block;height:100%}
+.up{color:var(--good)} .dn{color:var(--bad)}
+.empty{padding:28px 16px;text-align:center;color:var(--mute)}
+@media (min-width:860px){ .row{grid-template-columns:150px minmax(0,1fr) 150px 120px 70px} .hide-m{display:block} }
+@media (max-width:859px){ .hide-m{display:none} }
+@media (max-width:600px){ .hide-s{display:none} }
+
+/* Detay paneli */
+.sheet{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.45);display:flex;justify-content:flex-end}
+.sheet[hidden]{display:none}
+.sheet .panel{background:var(--bg);width:min(760px,100%);height:100%;overflow-y:auto;padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));border-left:1px solid var(--line)}
+.sheet-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.price-big{font-family:var(--f-mono);font-size:1.4rem;font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{background:var(--panel);border:0;padding:6px 12px;cursor:pointer;color:var(--mute);font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--panel2);color:var(--fg)}
+canvas.chart{width:100%;height:340px;display:block;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:.75rem;color:var(--mute);margin:6px 0 14px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:12px;height:8px;border-radius:2px;display:inline-block}
+.planbox{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px;display:grid;gap:12px}
+.levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.lv{display:flex;flex-direction:column;gap:2px}
+.lv .v{font-family:var(--f-mono);font-size:1rem}
+ul.reasons{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+ul.reasons li{padding-left:16px;position:relative;font-size:.92rem}
+ul.reasons li::before{content:"";position:absolute;left:2px;top:.55em;width:7px;height:7px;border-radius:50%;background:var(--mute)}
+ul.reasons li.p::before{background:var(--good)} ul.reasons li.n::before{background:var(--bad)}
+.stages{display:grid;gap:10px;margin-bottom:6px}
+.summary{display:grid;gap:10px;border:1px solid var(--accent);border-radius:8px;padding:14px;background:var(--panel)}
+.summary .headline{margin:0;font-size:1.05rem;font-weight:600;line-height:1.4}
+.scen{display:grid;gap:6px}
+.scen ol{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
+.stage{border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:8px;background:var(--panel2)}
+.stage-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.stage-n{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;background:var(--accent);color:#1a1205;font-weight:700;font-size:.8rem;font-family:var(--f-mono)}
+.stage-s{margin-left:auto}
+details summary{cursor:pointer;font-size:.88rem}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 16px;font-size:.88rem}
+.kv div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dashed var(--line);padding-bottom:4px}
+
+/* Günlük plan */
+.plan-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))}
+.card{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card ol{margin:0;padding-left:20px;display:grid;gap:8px}
+.card li{font-size:.9rem}
+.card li .num{font-size:.85em}
+
+/* Backtest */
+.bt-form{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));align-items:end;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px}
+.bt-form .wide{grid-column:1/-1}
+.check{display:flex;align-items:center;gap:6px;font-size:.9rem}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:14px 0}
+.metric{background:var(--panel);padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.metric .v{font-family:var(--f-mono);font-size:1.2rem;font-weight:600}
+.metric .s{font-size:.78rem;color:var(--mute);font-family:var(--f-mono)}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:.85rem}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{font-weight:600;color:var(--mute);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;background:var(--panel2);position:sticky;top:0}
+td:first-child,th:first-child,td.l,th.l{text-align:left}
+td{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+td.t{font-family:var(--f-body)}
+.subtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:8px 0 12px;overflow-x:auto}
+.subtabs button{background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;color:var(--mute);font-weight:600;cursor:pointer;white-space:nowrap}
+.subtabs button[aria-selected="true"]{color:var(--fg);border-color:var(--accent)}
+.note{font-size:.8rem;color:var(--mute);border-left:2px solid var(--line);padding-left:10px}
+.disclaimer{font-size:.75rem;color:var(--mute);text-align:center;padding:18px 0 8px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:6px;font-size:.88rem;z-index:60;max-width:calc(100% - 32px)}
+.stack{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+.stack > *{min-width:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap bar">
+    <div class="brand">Ayaz <b>PA</b></div>
+    <span class="conn" id="conn"><span class="dot" id="connDot"></span><span id="connTxt">Bağlanıyor</span></span>
+    <div class="spacer"></div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="scan" aria-selected="true">Tarayıcı</button>
+      <button role="tab" data-tab="daily" aria-selected="false">Günlük Plan</button>
+      <button role="tab" data-tab="bt" aria-selected="false">Backtest</button>
+      <button role="tab" data-tab="set" aria-selected="false">Ayarlar</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- TARAYICI -->
+  <section id="tab-scan" class="stack">
+    <div class="controls">
+      <div class="field"><span class="lbl">Piyasa</span>
+        <select id="market">
+          <option value="USDT">Kripto · USDT pariteleri</option>
+          <option value="TRY">Kripto · TRY pariteleri</option>
+          <option value="BIST" disabled>BIST hisseleri (veri kaynağı bekleniyor)</option>
+        </select></div>
+      <div class="field"><span class="lbl">Kaç coin</span>
+        <select id="universe">
+          <option value="9999" selected>Tüm pariteler</option>
+          <option value="200">Hacimde ilk 200</option>
+          <option value="100">Hacimde ilk 100</option>
+          <option value="50">Hacimde ilk 50</option>
+        </select></div>
+      <div class="field"><span class="lbl">Min. günlük hacim</span>
+        <select id="minVol">
+          <option value="0" selected>Filtre yok</option>
+          <option value="50000">50 bin $</option>
+          <option value="100000">100 bin $</option>
+          <option value="250000">250 bin $</option>
+          <option value="1000000">1 milyon $</option>
+          <option value="5000000">5 milyon $</option>
+        </select></div>
+      <button class="btn" id="scanBtn">Taramayı başlat</button>
+    </div>
+    <div>
+      <div class="status-line"><span id="scanInfo">4s bağlam → 1s yapı → 15dk tetik → karar. Yapı, likidite, FVG, order block, hacim ve BTC yönü birlikte okunur.</span><span id="scanTime"></span></div>
+      <div class="progress"><i id="prog"></i></div>
+    </div>
+    <div id="buyNow" style="margin-bottom:14px"></div>
+    <div class="chips" id="phaseChips"></div>
+    <div class="list" id="list"><div class="empty">Taramayı başlatın. İlk tarama 100 coin için yaklaşık 30 saniye sürer.</div></div>
+  </section>
+
+  <!-- GÜNLÜK PLAN -->
+  <section id="tab-daily" class="stack" hidden>
+    <div class="status-line"><h2 id="dailyTitle">Günlük işlem planı</h2><button class="btn ghost" id="copyPlan">Planı kopyala</button></div>
+    <p class="note" id="dailyNote">Plan son taramadan üretilir. Önce Tarayıcı sekmesinde tarama yapın.</p>
+    <div class="plan-grid" id="dailyGrid"></div>
+  </section>
+
+  <!-- BACKTEST -->
+  <section id="tab-bt" class="stack" hidden>
+    <div>
+      <h2>Strateji testi</h2>
+      <p class="note" id="btNote">Strateji geçmiş veride mum mum çalışır: karar sadece o ana kadarki mumlarla verilir, emir bir sonraki mumun açılışında dolar, stop mum içinde değerse stop fiyatından (ya da daha kötü açılıştan) çıkılır. Komisyon ve kayma her iki yönde düşülür.</p>
+    </div>
+    <form class="bt-form" id="btForm">
+      <div class="field"><span class="lbl">Sembol</span><input id="btSym" list="symList" value="BTCUSDT" autocapitalize="characters" spellcheck="false"><datalist id="symList"></datalist></div>
+      <div class="field"><span class="lbl">Strateji</span><select id="btStrat"><option value="motor" selected>Motor kurulumları (çok motorlu)</option><option value="trend">Trend Kırılımı (swing)</option><option value="pa">Price action modelleri (deneysel)</option></select></div>
+      <div class="field"><span class="lbl">Dönem</span><select id="btDays"><option value="30">30 gün</option><option value="60">60 gün</option><option value="90" selected>90 gün</option><option value="180">180 gün</option><option value="365">365 gün</option></select></div>
+      <div class="field"><span class="lbl">Başlangıç sermaye</span><input id="btCap" type="number" value="1000" min="10" step="10"></div>
+      <div class="field"><span class="lbl">İşlem başı risk %</span><input id="btRisk" type="number" value="1" min="0.1" max="10" step="0.1"></div>
+      <div class="field"><span class="lbl">Komisyon %</span><input id="btFee" type="number" value="0.1" min="0" step="0.01"></div>
+      <div class="field"><span class="lbl">Kayma %</span><input id="btSlip" type="number" value="0.03" min="0" step="0.01"></div>
+      <div class="field pa-only"><span class="lbl">Min. puan</span><input id="btScore" type="number" value="55" min="0" max="100" step="5"></div>
+      <div class="field pa-only"><span class="lbl">Min. risk/ödül</span><input id="btRR" type="number" value="1.5" min="0.5" step="0.1"></div>
+      <div class="field pa-only"><span class="lbl">Çıkış</span><select id="btExit"><option value="split">%50 H1, kalan H2 (stop başabaşa)</option><option value="t1">Tamamı Hedef 1</option><option value="t2">Tamamı Hedef 2</option></select></div>
+      <div class="field pa-only"><span class="lbl">Maks. süre (mum)</span><input id="btMax" type="number" value="192" min="8" step="8"></div>
+      <div class="wide pa-only" style="display:flex;flex-wrap:wrap;gap:14px">
+        <label class="check"><input type="checkbox" id="btLimit" checked> Bölgeye limit emir</label>
+        <label class="check"><input type="checkbox" id="btShort"> Short (vadeli) işlemler</label>
+        <span class="mute" style="font-size:.85rem">Fazlar:</span>
+        <label class="check"><input type="checkbox" class="btPh" value="yeni" checked> Yeni yükseliş</label>
+        <label class="check"><input type="checkbox" class="btPh" value="geri" checked> Geri çekilme</label>
+        <label class="check"><input type="checkbox" class="btPh" value="devam" checked> Sürüyor</label>
+        <label class="check"><input type="checkbox" class="btPh" value="donus" checked> Erken dönüş</label>
+      </div>
+      <div class="wide" style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" type="submit" id="btRun">Testi çalıştır</button>
+        <button class="btn ghost" type="button" id="btBatch">Toplu test (ilk 20 coin)</button>
+        <span class="mute" id="btStatus" style="align-self:center;font-size:.85rem"></span>
+      </div>
+      <div class="progress wide" style="margin:0"><i id="btProg"></i></div>
+    </form>
+    <div id="btOut"></div>
+  </section>
+
+  <!-- AYARLAR -->
+  <section id="tab-set" class="stack" hidden>
+    <h2>Ayarlar</h2>
+    <div class="bt-form">
+      <div class="field"><span class="lbl">Tarama için min. risk/ödül</span><input id="setRR" type="number" value="1.5" step="0.1" min="0.5"></div>
+      <div class="field"><span class="lbl">Otomatik tarama</span><select id="setAuto"><option value="0">Kapalı</option><option value="15">Her 15dk mum kapanışında</option><option value="60">Her saat</option></select></div>
+      <div class="field"><span class="lbl">Tema</span><select id="setTheme"><option value="">Sistem</option><option value="dark">Koyu</option><option value="light">Açık</option></select></div>
+      <label class="check wide"><input type="checkbox" id="setShort"> Price action analizinde short (vadeli) planları da göster</label>
+      <label class="check wide"><input type="checkbox" id="setNotify"> Yeni AL sinyali çıkınca bildirim gönder</label>
+    </div>
+    <div class="card">
+      <h3>Robot nasıl çalışır? (mimari)</h3>
+      <p style="margin:0">Profesyonel algoritmik sistemlerin standart yapısı kullanıldı: <b>evren → motorlar → kurulum (kombinasyon) → karar → risk/çıkış</b>. Zaman dilimi görevleri: <b>Günlük</b> rejim ve 20 günlük seviyeler (BTC 50 günlük ortalama, 20 gün zirve/dip), <b>4s</b> ana yapı (HH/HL, CHoCH, OB/FVG), <b>1s</b> kurulum ve tetik (BOS/CHoCH, mum, hacim, seans), giriş bir sonraki 1s mumun açılışı.</p>
+      <ul class="reasons">
+        <li><b>1. Evren:</b> tüm USDT pariteleri, hacim filtresi yok.</li>
+        <li><b>2. Motorlar (her biri ayrı tarar):</b> Yapı (1s/4s BOS, CHoCH, HH/HL) · Order Block · FVG · Likidite (tepe/dip süpürmesi, üstteki likiditeye oda) · Mum (yutan, çekiç, güçlü gövde, inside bar) · Hacim (son mum / son 3 mum ortalamaya oranı) · Fibonacci (OTE 0.618–0.79) · Momentum (RSI, 20 gün zirvesi) · Zaman (Asya, Londra, New York) · Rejim (BTC).</li>
+        <li><b>3. Kurulumlar:</b> motorların hangi kombinasyonunun kazandırdığı 18 coinin gerçek Binance verisinde ölçüldü. Yüzlerce kombinasyon içinden hem eğitim (Oca 2024–Haz 2025) hem doğrulama (Tem 2025–Nis 2026) döneminde kârlı olanlar seçildi; hiç görülmeyen test döneminde (May–Eyl 2026) ölçüldü.</li>
+        <li><b>4. Karar:</b> bir kurulumun bütün motorları son kapanan 1s mumda aynı anda çalışırsa AL (long kurulumlar sadece BTC rejimi olumluyken). Birden çok kurulum aynı anda tutarsa sıralamada öne çıkar.</li>
+        <li><b>5. Risk/çıkış:</b> stop 3 ATR(1s); sabit hedef yok, iz süren stop en iyi fiyattan 8 ATR geride. Ayrıca swing modeli <b>Trend Kırılımı</b> (20 gün zirvesi, stop 4 ATR, iz 12 ATR) ayrı çalışır.</li>
+      </ul>
+      <p class="note" style="margin:0"><b>Long kurulumlar:</b> L1 Hacim×2 + 1s BOS + yutan mum · L2 Güçlü gövde + BTC + 1s CHoCH · L3 RSI>70 + 20g kırılım sonrası geri test + Asya · L4 20g zirveye yakın + RSI>70 + güçlü gövde · L5 RSI>70 + güçlü gövde + BTC · L6 RSI>60 + hacim×2 + geri test. <b>Short (vadeli, ayarlardan açılır):</b> NY seansında 20g dibe yakın + hacim / düşen 4s yapı / aşırı satış + güçlü satış mumu.</p>
+      <p class="note" style="margin:0"><b>Test sonuçları (18 coin, işlem başı maliyet %0.26):</b> long kurulumlar (BTC filtreli) eğitim 1055 işlem +0.11R, doğrulama 416 işlem +0.20R, test 258 işlem +0.48R. Kazanma %26–31: kayıplar küçük (ort −0.94R), kazançlar büyük (ort +2.7R). Tek başına OB, FVG, süpürme ya da mum formasyonu kazandırmadı; kazandıran, bunların momentum, hacim, zaman ve rejimle birleşimi. Kayıp serileri uzun olabilir; işlem başı %0.5–1 risk ve aynı anda en fazla 5–6 pozisyon önerilir. Geçmiş sonuç geleceği garanti etmez.</p>
+    </div>
+    <p class="note" id="srcNote">Veri: Binance herkese açık piyasa verisi (REST + canlı WebSocket). API anahtarı gerekmez, emir göndermez.</p>
+  </section>
+  <p class="disclaimer">Yatırım tavsiyesi değildir. Kararlar ve risk size aittir.</p>
+</main>
+
+<!-- DETAY -->
+<div class="sheet" id="sheet" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="dSym">
+    <div class="sheet-head">
+      <button class="btn ghost" id="closeSheet" aria-label="Kapat">←</button>
+      <div><div class="sym" id="dSym">-</div><div class="sub" id="dSub"></div></div>
+      <div class="spacer"></div>
+      <div style="text-align:right"><div class="price-big" id="dPrice">-</div><div class="num" id="dChg"></div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <div class="seg" id="tfSeg"><button data-tf="15m" aria-pressed="true">15dk</button><button data-tf="1h" aria-pressed="false">1s</button><button data-tf="4h" aria-pressed="false">4s</button></div>
+      <span class="conn"><span class="dot" id="liveDot"></span><span id="liveTxt">canlı</span></span>
+    </div>
+    <canvas class="chart" id="chart"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--good-bg);border:1px solid var(--good)"></i>Boğa FVG / OB</span>
+      <span><i style="background:var(--bad-bg);border:1px solid var(--bad)"></i>Ayı FVG / OB</span>
+      <span><i style="background:var(--accent)"></i>Giriş / tetik</span>
+      <span><i style="background:var(--bad)"></i>Stop</span>
+      <span><i style="background:var(--info)"></i>Likidite</span>
+    </div>
+    <div class="planbox" id="dPlan"></div>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script src="engines.js"></script>
+<script src="backtest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
