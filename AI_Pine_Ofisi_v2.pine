@@ -82,7 +82,7 @@ trendBull = emaBull and (chanUp or close > basis)
 trendBear = emaBear and (chanDown or close < basis)
 
 rsi = ta.rsi(close, rsiLen)
-[macdLine, macdSigLine, _] = ta.macd(close, macdFast, macdSlow, macdSignal)
+[macdLine, macdSigLine, macdHist] = ta.macd(close, macdFast, macdSlow, macdSignal)
 [plusDI, minusDI, adx]     = ta.dmi(dmiLen, adxSmooth)
 
 volMA = ta.sma(volume, volLen)
@@ -188,9 +188,9 @@ sellSideSweep =
 rsiBuyOk  = rsi >= rsiBuyMin  and rsi <= rsiBuyMax  and rsi > rsi[1]
 rsiSellOk = rsi >= rsiSellMin and rsi < rsi[1]
 
-// MACD: Sinyal hattı pozisyonu (histogram gürültüsü kaldırıldı)
-macdBuyOk  = macdLine > macdSigLine
-macdSellOk = macdLine < macdSigLine
+// MACD: Sinyal hatti pozisyonu + histogram ivmesi
+macdBuyOk  = macdLine > macdSigLine and macdHist > macdHist[1]
+macdSellOk = macdLine < macdSigLine and macdHist < macdHist[1]
 
 // DMI: Hem yön hem güç birlikte zorunlu
 dmiBuyOk  = plusDI  > minusDI and adx >= adxMin
