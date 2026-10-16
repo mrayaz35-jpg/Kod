@@ -488,7 +488,7 @@
   const lockTxt = x => Math.abs(x.lock) < 0.5 ? 'Başabaş, zarar yok' : (x.lock > 0 ? '+%' : '−%') + Math.abs(x.lock).toFixed(0) + (x.lock > 0 ? ' kâr' : ' zarar');
   function ladderTable(L, short) {
     if (!L.length) return '';
-    return `<div class="tblwrap" style="margin-top:6px"><table><thead><tr><th class="l">Fiyat buraya ${short ? 'inerse' : 'çıkarsa'}</th><th>Stopu buraya çek</th><th class="l">Stop olursa sonuç</th></tr></thead><tbody>${L.map(x => `<tr><td class="l up">${fp(x.P)}</td><td>${fp(x.st)}</td><td class="l ${x.lock >= 0 ? 'up' : 'dn'}">${lockTxt(x)}</td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="tblwrap" style="margin-top:6px"><table><thead><tr><th class="l">Fiyat buraya ${short ? 'inerse' : 'çıkarsa'}</th><th>Stopu buraya çek</th><th class="l">Stop olursa sonuç</th></tr></thead><tbody>${L.map(x => `<tr><td class="l up">${fp(x.P)}</td><td>${fp(x.st)}</td><td class="l ${x.lock >= -0.5 ? 'up' : 'dn'}">${lockTxt(x)}</td></tr>`).join('')}</tbody></table></div>`;
   }
   // AL bölgesi: sinyal fiyatının biraz altı – biraz üstü. Üstüne kaçtıysa kovalanmaz.
   function buyZone(e, atr, short) {
@@ -728,16 +728,24 @@
       recompute(); openKlineWS(sym);
     } catch (e) { $('#dSub').textContent = 'Veri alınamadı: ' + e.message; }
   }
+  // Önündeki dirençler (bilgi amaçlı): son 20 günün teyitli 1s tepe noktaları (3/3) + 20 günlük zirve; %0.5 içindekiler birleştirilir
+  function resistances(c) {
+    const n = c.length, px = c[n - 1].c, lv = [];
+    for (let i = Math.max(3, n - 480); i < n - 3; i++) { let ok = true; for (let q = 1; q <= 3; q++) if (c[i - q].h >= c[i].h || c[i + q].h > c[i].h) { ok = false; break; } if (ok && c[i].h > px * 1.002) lv.push(c[i].h); }
+    let hi = -Infinity; for (let i = Math.max(0, n - 481); i < n - 1; i++) hi = Math.max(hi, c[i].h); if (hi > px * 1.002) lv.push(hi);
+    lv.sort((a, b) => a - b); const out = []; for (const v of lv) { if (!out.length || v > out[out.length - 1] * 1.005) out.push(v); else out[out.length - 1] = Math.max(out[out.length - 1], v); }
+    return out.slice(0, 4);
+  }
   async function loadTrend(sym) {
     const btcD1 = isBist(sym) ? null : await getBtcD1().catch(() => null);
     try {
       const h = await trendHist(sym, 1000, w => { if ($('#trWait')) $('#trWait').textContent = `Twelve Data dakika sınırı: ${w} sn bekleniyor…`; }, true);
       const need = isBist(sym) ? 200 : PA.TREND.N + 2;
-      if (h.length >= need) return { tr: PA.trend(h, trendOpts(sym, btcD1)), eng: ENG.scanNow(h, { btcReg: isBist(sym) ? null : regFn(btcD1), btc7: isBist(sym) ? null : ENG.btc7Fn(btcD1), filter: isBist(sym) ? false : undefined, longOnly: !S.short, history: true }), exact: true, bars: h.length };
+      if (h.length >= need) return { res: resistances(h), tr: PA.trend(h, trendOpts(sym, btcD1)), eng: ENG.scanNow(h, { btcReg: isBist(sym) ? null : regFn(btcD1), btc7: isBist(sym) ? null : ENG.btc7Fn(btcD1), filter: isBist(sym) ? false : undefined, longOnly: !S.short, history: true }), exact: true, bars: h.length };
     } catch {}
     const [b, dd, f] = await Promise.all([klines(sym, '1h', 1000), klines(sym, '1D', 60), ART ? klines(sym, '4h', 60) : Promise.resolve(null)]);
     const h = closed(b), d1 = doneDays(dd);
-    return { tr: PA.trend(h, trendOpts(sym, btcD1, d1)), eng: ENG.scanNow(h, { btcReg: regFn(btcD1), btc7: ENG.btc7Fn(btcD1), c4: f ? closed(f) : null, d1, longOnly: !S.short, history: h.length > 200 }), exact: h.length >= PA.TREND.N + 2, bars: h.length };
+    return { res: resistances(h), tr: PA.trend(h, trendOpts(sym, btcD1, d1)), eng: ENG.scanNow(h, { btcReg: regFn(btcD1), btc7: ENG.btc7Fn(btcD1), c4: f ? closed(f) : null, d1, longOnly: !S.short, history: h.length > 200 }), exact: h.length >= PA.TREND.N + 2, bars: h.length };
   }
   const deadCoin = d => d.tr && d.tr.tr && d.tr.tr.atr && d.tr.tr.riskPct != null && d.tr.tr.riskPct < MIN_RISK;
   function motorCard(d) {
@@ -753,7 +761,8 @@
       ${sig ? `<p class="headline">${sig.setups.map(x => esc(x.name)).join(' + ')}</p>
         <p class="mute" style="margin:0;font-size:.85rem">Çalışan motorlar: ${sig.setups.flatMap(x => x.eng).filter((v, i, a) => a.indexOf(v) === i).map(k => esc(ENG.EN[k])).join(' · ')}</p>
         <div class="levels">${lv('Giriş (şimdi)', fp(sig.entry))}${lv('STOP', fp(sig.stop) + ` <small class="mute">${sig.side === 1 ? '−' : '+'}${sig.riskPct.toFixed(2)}%</small>`, 'dn')}${lv('AL bölgesi', (z => fp(z[0]) + ' – ' + fp(z[1]))(buyZone(sig.entry, sig.trailPct / 100 * sig.entry / ENG.EXIT.kt, sig.side === -1)))}</div>
-        <div><b style="font-size:.9rem">SAT merdiveni</b> <span class="mute" style="font-size:.8rem">· sabit hedef yok; fiyat ${sig.side === 1 ? 'yükseldikçe' : 'düştükçe'} stopu çek, stopa gelince sat</span>${ladderTable(ladder(sig.entry, sig.stop, sig.trailPct / 100 * sig.entry, sig.entry, sig.side === -1), sig.side === -1)}</div>`
+        <div><b style="font-size:.9rem">SAT merdiveni</b> <span class="mute" style="font-size:.8rem">· sabit hedef yok; fiyat ${sig.side === 1 ? 'yükseldikçe' : 'düştükçe'} stopu çek, stopa gelince sat</span>${ladderTable(ladder(sig.entry, sig.stop, sig.trailPct / 100 * sig.entry, sig.entry, sig.side === -1), sig.side === -1)}</div>
+        ${d.tr.res && d.tr.res.length && sig.side === 1 ? `<p class="note" style="margin:0"><b>Önündeki dirençler:</b> ${d.tr.res.map(v => `${fp(v)} <small class="mute">(+%${((v / sig.entry - 1) * 100).toFixed(1)}, ${((v - sig.entry) / (sig.entry - sig.stop)).toFixed(1)}R)</small>`).join(' · ')}. Fiyat bu seviyelerde zorlanabilir. Bilgi amaçlıdır: testte sabit hedefte satmak, merdivenle tutmaktan kötü sonuç verdi.</p>` : ''}`
         : (E.blocked && E.blocked.length ? `<p class="headline">${E.blocked[0].setups.map(x => esc(x.name)).join(' + ')}</p><p class="note" style="margin:0;border-color:var(--warn)"><b>Alım yok:</b> ${esc(E.blocked[0].reason)}. Testlerde bu durumdaki sinyaller ortalamada zarar ettirdi.</p>` : '<p class="mute" style="margin:0">Son kapanan 1s mumda hiçbir kurulumun bütün motorları aynı anda çalışmadı.</p>')}
       <details><summary class="mute">Motorların şu anki durumu</summary><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:8px">${engList(E.rowsL, 'Yükseliş (long) tarafı')}${S.short ? engList(E.rowsS, 'Düşüş (short) tarafı') : ''}</div></details>
       ${hist.length ? `<details><summary class="mute">Bu coindeki son motor sinyalleri</summary><div class="tblwrap" style="margin-top:8px"><table><thead><tr><th class="l">Sinyal</th><th class="l">Kurulum</th><th>Giriş</th><th>Çıkış / şimdi</th><th>%</th><th>R</th></tr></thead><tbody>${hist.map(t => `<tr><td class="l">${dt(t.sigT + 36e5)}</td><td class="t l">${t.side === 1 ? '' : 'Short · '}${esc(t.setups.join(', '))}</td><td>${fp(t.e)}</td><td>${fp(t.exitPx)}</td><td class="${t.R >= 0 ? 'up' : 'dn'}">${t.side === 1 ? pc(t.exitPx, t.e) : pc(t.e, t.exitPx)}</td><td class="${t.R >= 0 ? 'up' : 'dn'}">${t.R.toFixed(2)}${t.open ? ' (açık)' : ''}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
