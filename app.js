@@ -490,7 +490,7 @@
         out.push({ r, kind: r.src === 'motor' ? 'Yeni sinyal · motor kurulumu' : 'Yeni sinyal · trend kırılımı', short, e, zone: buyZone(e, r.atr, short), stop: r.stop, risk: R / e * 100, L: ladder(e, r.stop, r.trailD, e, short), rank: 2000 + r.score });
       } else if (r.decision === 'POZİSYONDA') {
         const e = r.last, risk = (e - r.stop) / e * 100;
-        if (risk > 0.8 && risk <= 8) out.push({ r, kind: 'Trend devam ediyor (robot zaten içeride)', short: false, e, zone: buyZone(e, r.atr), stop: r.stop, risk, L: ladder(r.entry || e, r.stop, r.trailD, e), rank: 1000 - risk });
+        if (risk >= 2 && risk <= 8) out.push({ r, kind: 'Trend devam ediyor (robot zaten içeride)', short: false, e, zone: buyZone(e, r.atr), stop: r.stop, risk, L: ladder(r.entry || e, r.stop, r.trailD, e), rank: 1000 - risk });
       }
     }
     return out.sort((a, b) => b.rank - a.rank);
@@ -498,18 +498,19 @@
   function renderBuyNow() {
     const box = $('#buyNow'); if (!box) return;
     if (!results.length) { box.innerHTML = alarmBar(); bindAlarm(); return; }
-    const L = buyNow();
-    box.innerHTML = alarmBar() + `<div class="card" style="border-color:var(--good)">
-      <div><h3 style="margin:0">Şimdi alınabilecekler <span class="pill ${L.length ? 'good' : 'neutral'}">${L.length}</span></h3>
-      <div class="mute" style="font-size:.82rem">1) AL bölgesinden al (fiyat bölgenin üstüne kaçtıysa kovalama). 2) STOP'u hemen koy. 3) SAT merdiveni: fiyat yazan seviyeye çıktıkça stopu yukarı çek; fiyat stopa inince sat. Sabit hedef yok: trend ne kadar giderse o kadar kazanırsın. İşlemlerin çoğu küçük zararla stop olur, para birkaç büyük kazanandan gelir.</div></div>
-      ${L.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px">
-      ${L.slice(0, 12).map(x => `<div class="bn" data-sym="${esc(x.r.sym)}" style="cursor:pointer;border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px">
+    const ALL = buyNow(), L = ALL.filter(x => x.rank >= 2000), LO = ALL.filter(x => x.rank < 2000);
+    const card = x => `<div class="bn" data-sym="${esc(x.r.sym)}" style="cursor:pointer;border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px">
         <div><b style="font-size:1.05rem">${esc(x.r.base)}</b> <span class="pill ${x.short ? 'warn' : 'good'}">${x.short ? 'SHORT' : 'AL'}</span><br><span class="mute" style="font-size:.75rem">${esc(x.kind)}</span></div>
         <div class="num" style="font-size:.88rem"><span class="mute">AL bölgesi</span> <b>${fp(x.zone[0])} – ${fp(x.zone[1])}</b></div>
         <div class="num" style="font-size:.88rem"><span class="mute">STOP</span> <b class="dn">${fp(x.stop)}</b> <small class="mute">(${x.short ? '+' : '−'}%${x.risk.toFixed(1)})</small></div>
-        <div style="font-size:.8rem"><span class="mute">SAT merdiveni (fiyat → yeni stop)</span><br>${x.L.length ? x.L.slice(0, 3).map(y => `<span class="num">${fp(y.P)} → <b>${fp(y.st)}</b></span> <span class="${y.lock >= 0 ? 'up' : 'dn'}">${lockTxt(y)}</span>`).join('<br>') : '<span class="mute">—</span>'}</div>
-      </div>`).join('')}
-      </div>` : '<p class="mute" style="margin:0">Şu an alım şartı tutan parite yok. Sinyaller saat başı mum kapanışında oluşur; alarmı açarsan robot her saat tarar ve haber verir.</p>'}
+        <div style="font-size:.8rem"><span class="mute">SAT merdiveni (fiyat → yeni stop)</span><br>${x.L.length ? x.L.slice(0, 3).map(y => `<span class="num">${fp(y.P)} → <b>${fp(y.st)}</b></span> <span class="${y.lock >= -0.5 ? 'up' : 'dn'}">${lockTxt(y)}</span>`).join('<br>') : '<span class="mute">—</span>'}</div>
+      </div>`;
+    const grid = arr => `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px">${arr.map(card).join('')}</div>`;
+    box.innerHTML = alarmBar() + `<div class="card" style="border-color:var(--good)">
+      <div><h3 style="margin:0">Şimdi alınabilecekler <span class="pill ${L.length ? 'good' : 'neutral'}">${L.length}</span></h3>
+      <div class="mute" style="font-size:.82rem">1) AL bölgesinden al (fiyat bölgenin üstüne kaçtıysa kovalama). 2) STOP'u hemen koy. 3) SAT merdiveni: fiyat yazan seviyeye çıktıkça stopu yukarı çek; fiyat stopa inince sat. Sabit hedef yok: trend ne kadar giderse o kadar kazanırsın. İşlemlerin çoğu küçük zararla stop olur, para birkaç büyük kazanandan gelir.</div></div>
+      ${L.length ? grid(L.slice(0, 20)) : '<p class="mute" style="margin:0">Şu an alım şartı tutan parite yok. Sinyaller saat başı mum kapanışında oluşur; alarmı açarsan robot her saat tarar ve haber verir.</p>'}
+      ${LO.length ? `<details style="margin-top:4px"><summary class="mute">Devam eden trendler · geç giriş, isteğe bağlı (${LO.length})</summary><p class="mute" style="font-size:.8rem;margin:6px 0">Sinyal daha önce geldi, trend sürüyor. Yeni sinyaller kadar iyi değil; sadece yeni sinyal yoksa ve stop %2–8 arasındaysa düşünülür.</p>${grid(LO.slice(0, 20))}</details>` : ''}
     </div>` + historyCard();
     $$('#buyNow .bn, #buyNow .hrow').forEach(b => b.onclick = () => openDetail(b.dataset.sym));
     bindAlarm();
@@ -1223,6 +1224,10 @@
     $('#market').addEventListener('change', () => { store.set('mkt', $('#market').value); PA.setFx($('#market').value === 'TRY' ? store.get('fx', 1) : 1); results = []; renderList(); $('#scanInfo').textContent = $('#market').value === 'BIST' ? 'BIST 30 taranır. Twelve Data dakikada 8 sorguya izin verdiği için 30 hisse yaklaşık 4 dakika sürer.' : ($('#market').value === 'TRY' ? 'TL modu: coinler USDT paritesinden taranır, bütün fiyatlar güncel USD/TRY kuruyla TL\'ye çevrilir. ' : '') + 'Kripto taraması Crypto.com verisiyle (günlük + 1s) yapılır; öne çıkan coinler Binance 1s geçmişiyle (Twelve Data) kesinleştirilir.'; });
     if (![...$('#universe').options].some(o => +o.value === S.universe)) S.universe = 9999;
     $('#setNotify').closest('label').hidden = true;
+    { const bn = document.createElement('a'); bn.href = 'https://raw.githack.com/mrayaz35-jpg/Kod/ayaz-pa-app/index.html'; bn.target = '_blank'; bn.rel = 'noopener';
+      bn.style.cssText = 'display:block;margin:0 0 14px;padding:14px 16px;border-radius:12px;background:var(--good);color:#fff;font-weight:700;text-decoration:none;text-align:center;font-size:1.05rem';
+      bn.innerHTML = 'Tüm Binance TRY paritelerini (350+) taramak için buraya dokun ›<div style="font-weight:400;font-size:.8rem;opacity:.9;margin-top:4px">Bu sayfa Binance\'a bağlanamadığı için yalnızca ~116 coin tarar. Açılan sayfada uyarı çıkarsa "Open the page"e bas.</div>';
+      $('#buyNow').before(bn); }
     $('#srcNote').textContent = 'Veri: Crypto.com Exchange canlı piyasa verisi (claude.ai bağlayıcınız üzerinden). Her grafikte son 50 mum okunur. Kurulu sürüm Binance\'tan 300 mum okur.';
     $('#btOut').innerHTML = '<p class="note">Bu bağlantıda backtest Binance fiyatıyla (Twelve Data) yapılır. Trend Kırılımı 1 saatlik mumlarla 180 güne kadar test edilir (5000 mum, ilk 480 mum ısınma). Tek coinde işlem az olur; Toplu test 10 coini birlikte ölçer. BIST hisselerini de test edebilirsiniz (ör. THYAO).</p>';
     if (false) $('#btOut').innerHTML = '<div class="card"><h3>Backtest kurulu sürümde çalışır</h3><p style="margin:0">Backtest uzun geçmiş veri ister: 90 günlük test 8.640 adet 15dk mum demek. Bu bağlantıdaki veri kaynağı her grafikte yalnızca son 50 mumu veriyor, bu yüzden burada güvenilir bir test yapılamaz.</p><p class="mute" style="margin:0">Kurulu sürüm (ayaz-pa.zip) Binance\'tan 365 güne kadar veri indirip TradingView Strategy Tester gibi tam test yapar: net kâr, kazanma oranı, profit factor, max drawdown, Sharpe, sermaye eğrisi, işlem listesi ve 20 coinde toplu test.</p></div>';
