@@ -42,17 +42,17 @@ if barstate.isfirst
         runtime.error("Standart 15m, 1H veya 4H grafik kullanin.")
 
 // 3 - GERCEK 4H HESAPLAMA
-// f_h4() 10 deger dondurur (Pine v6 tuple limiti icin guveli aralik).
-// prevHigh/prevLow/rangeHigh/rangeLow/close ayri security cagrisiyla alinir.
+// Her fonksiyon tek deger dondurur (CE10112 onlemi).
+// Durum gerektiren mainTrend ayri fonksiyonda, gostergeler tek degerli fonksiyonlarda.
 
-f_h4() =>
+// Ana trend - var ile durumu korur
+f_trend4H() =>
     float ema = ta.ema(close, emaLen)
     float hma = ta.hma(close, hmaLen)
 
-    [stLine, stDirection] = ta.supertrend(stFactor, stLen)
+    [stLine, stDir]    = ta.supertrend(stFactor, stLen)
     [diPlus, diMinus, adx] = ta.dmi(diLen, adxSmooth)
 
-    // Onaylanmis swing seviyeleri
     float ph = ta.pivothigh(high, pivotLen, pivotLen)
     float pl = ta.pivotlow(low,  pivotLen, pivotLen)
 
@@ -61,19 +61,15 @@ f_h4() =>
     float lastLow  = ta.valuewhen(not na(pl), pl, 0)
     float prevLow  = ta.valuewhen(not na(pl), pl, 1)
 
-    // Fiyat yapisi
     bool structureUp   = not na(prevHigh) and not na(prevLow) and lastHigh > prevHigh and lastLow > prevLow
     bool structureDown = not na(prevHigh) and not na(prevLow) and lastHigh < prevHigh and lastLow < prevLow
 
-    // Yapi kirilmasi (BOS)
     bool bosUp   = not na(lastHigh[1]) and close > lastHigh[1] and close[1] <= lastHigh[1]
     bool bosDown = not na(lastLow[1])  and close < lastLow[1]  and close[1] >= lastLow[1]
 
-    // Yardimci momentum
-    bool momentumUp   = stDirection < 0 and hma > hma[2] and diPlus > diMinus
-    bool momentumDown = stDirection > 0 and hma < hma[2] and diMinus > diPlus
+    bool momentumUp   = stDir < 0 and hma > hma[2] and diPlus > diMinus
+    bool momentumDown = stDir > 0 and hma < hma[2] and diMinus > diPlus
 
-    // Ana yonu kalici tut
     var int mainTrend = 0
 
     if bosUp and not bosDown
@@ -90,10 +86,41 @@ f_h4() =>
         else if momentumDown and close < ema
             mainTrend := -1
 
-    // 10 deger dondur - tamamlanmis 4H mumu
-    [mainTrend[1], ema[1], hma[1], stLine[1], stDirection[1], diPlus[1], diMinus[1], adx[1], lastHigh[1], lastLow[1]]
+    int(mainTrend[1])
 
-// Yardimci fonksiyonlar: ayri security cagrilari icin
+// Gosterge fonksiyonlari - her biri tek deger dondurur
+
+f_ema4H() => ta.ema(close, emaLen)[1]
+f_hma4H() => ta.hma(close, hmaLen)[1]
+
+f_stLine4H() =>
+    [stLine, stDir] = ta.supertrend(stFactor, stLen)
+    stLine[1]
+
+f_stDir4H() =>
+    [stLine, stDir] = ta.supertrend(stFactor, stLen)
+    int(stDir[1])
+
+f_diPlus4H() =>
+    [diPlus, diMinus, adx] = ta.dmi(diLen, adxSmooth)
+    diPlus[1]
+
+f_diMinus4H() =>
+    [diPlus, diMinus, adx] = ta.dmi(diLen, adxSmooth)
+    diMinus[1]
+
+f_adx4H() =>
+    [diPlus, diMinus, adx] = ta.dmi(diLen, adxSmooth)
+    adx[1]
+
+f_lastHigh4H() =>
+    float ph = ta.pivothigh(high, pivotLen, pivotLen)
+    ta.valuewhen(not na(ph), ph, 0)[1]
+
+f_lastLow4H() =>
+    float pl = ta.pivotlow(low, pivotLen, pivotLen)
+    ta.valuewhen(not na(pl), pl, 0)[1]
+
 f_prevHigh4H() =>
     float ph = ta.pivothigh(high, pivotLen, pivotLen)
     ta.valuewhen(not na(ph), ph, 1)[1]
@@ -104,7 +131,16 @@ f_prevLow4H() =>
 
 // 4 - 4H VERISI
 
-[trend4H, ema4H, hma4H, st4H, stDir4H, diPlus4H, diMinus4H, adx4H, high4H, low4H] = request.security(syminfo.tickerid, "240", f_h4(), lookahead=barmerge.lookahead_on)
+trend4H   = request.security(syminfo.tickerid, "240", f_trend4H(),   lookahead=barmerge.lookahead_on)
+ema4H     = request.security(syminfo.tickerid, "240", f_ema4H(),     lookahead=barmerge.lookahead_on)
+hma4H     = request.security(syminfo.tickerid, "240", f_hma4H(),     lookahead=barmerge.lookahead_on)
+st4H      = request.security(syminfo.tickerid, "240", f_stLine4H(),  lookahead=barmerge.lookahead_on)
+stDir4H   = request.security(syminfo.tickerid, "240", f_stDir4H(),   lookahead=barmerge.lookahead_on)
+diPlus4H  = request.security(syminfo.tickerid, "240", f_diPlus4H(),  lookahead=barmerge.lookahead_on)
+diMinus4H = request.security(syminfo.tickerid, "240", f_diMinus4H(), lookahead=barmerge.lookahead_on)
+adx4H     = request.security(syminfo.tickerid, "240", f_adx4H(),     lookahead=barmerge.lookahead_on)
+high4H    = request.security(syminfo.tickerid, "240", f_lastHigh4H(),lookahead=barmerge.lookahead_on)
+low4H     = request.security(syminfo.tickerid, "240", f_lastLow4H(), lookahead=barmerge.lookahead_on)
 
 close4H     = request.security(syminfo.tickerid, "240", close[1],                   lookahead=barmerge.lookahead_on)
 prevHigh4H  = request.security(syminfo.tickerid, "240", f_prevHigh4H(),             lookahead=barmerge.lookahead_on)
