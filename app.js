@@ -179,8 +179,10 @@
         .filter(t => !STABLE.test(t.base) && !/(UP|DOWN|BULL|BEAR)$/.test(t.base))
         .filter(t => t.qv >= (S.minVol || 0)).sort((x, y) => y.qv - x.qv).slice(0, max);
     }
-    const all = await bget('/api/v3/ticker/24hr');
-    return all.filter(t => t.symbol.endsWith(quote) && +t.quoteVolume > 0 && +t.count > 0)
+    const [all, ei] = await Promise.all([bget('/api/v3/ticker/24hr'), bget('/api/v3/exchangeInfo?permissions=SPOT').catch(() => null)]);
+    // Sadece işlem gören pariteler: Binance'ta kaldırılmış/askıya alınmış (BREAK) pariteler eski fiyatla sahte sinyal verir
+    const live = ei && ei.symbols ? new Set(ei.symbols.filter(x => x.status === 'TRADING').map(x => x.symbol)) : null;
+    return all.filter(t => t.symbol.endsWith(quote) && +t.quoteVolume > 0 && +t.count > 0 && (live ? live.has(t.symbol) : true) && (!t.closeTime || +t.closeTime > Date.now() - 2 * 864e5))
       .map(t => ({ sym: t.symbol, base: t.symbol.slice(0, -quote.length), last: +t.lastPrice, chg: +t.priceChangePercent, qv: +t.quoteVolume }))
       .filter(t => !STABLE.test(t.base) && !/(UP|DOWN|BULL|BEAR)$/.test(t.base) && t.qv >= (S.minVol || 0))
       .sort((a, b) => b.qv - a.qv).slice(0, max);
@@ -547,7 +549,7 @@
     store.set('sigLog', sigLog);
   }
   function historyCard() {
-    const now = Date.now(), L = sigLog.filter(x => x.t >= now - 30 * 864e5).sort((a, b) => b.t - a.t);
+    const now = Date.now(), live = new Set(results.map(r => r.sym)), L = sigLog.filter(x => x.t >= now - 30 * 864e5 && (!live.size || live.has(x.sym))).sort((a, b) => b.t - a.t);
     if (!L.length) return '';
     const res = x => { const px = x.open ? x.last : x.exit; return x.side * (px / x.e - 1) * 100; };
     const closed = L.filter(x => !x.open), wins = L.filter(x => res(x) > 0).length;
