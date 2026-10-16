@@ -15,34 +15,35 @@ pivotLen = input.int(2, "4H Swing sag/sol", minval=1, maxval=8)
 emaLen = input.int(55, "4H EMA", minval=10, maxval=200)
 hmaLen = input.int(21, "4H HMA", minval=9, maxval=100)
 
-stLen = input.int(10, "Supertrend ATR", minval=5, maxval=30)
+stLen    = input.int(10,    "Supertrend ATR",    minval=5, maxval=30)
 stFactor = input.float(3.0, "Supertrend katsayi", minval=1, maxval=6, step=0.25)
 
-diLen = input.int(14, "DMI periyot", minval=5)
-adxSmooth = input.int(14, "ADX yumusatma", minval=5)
-adxMin = input.float(20, "Guclu trend ADX", minval=10, maxval=40)
+diLen     = input.int(14,   "DMI periyot",    minval=5)
+adxSmooth = input.int(14,   "ADX yumusatma",  minval=5)
+adxMin    = input.float(20, "Guclu trend ADX", minval=10, maxval=40)
 
 srLen = input.int(20, "4H destek/direnc mum", minval=5, maxval=100)
 
-showEMA = input.bool(true, "EMA goster")
-showHMA = input.bool(true, "HMA goster")
-showST = input.bool(true, "Supertrend goster")
-showSR = input.bool(true, "Destek direnc goster")
-showPanel = input.bool(true, "Trend paneli")
-showBg = input.bool(false, "Trend arka plani")
-showSignals = input.bool(true, "Trend degisimleri")
+showEMA     = input.bool(true,  "EMA goster")
+showHMA     = input.bool(true,  "HMA goster")
+showST      = input.bool(true,  "Supertrend goster")
+showSR      = input.bool(true,  "Destek direnc goster")
+showPanel   = input.bool(true,  "Trend paneli")
+showBg      = input.bool(false, "Trend arka plani")
+showSignals = input.bool(true,  "Trend degisimleri")
 
 // 2 - GRAFIK KONTROLU
 
-int chartSeconds = timeframe.in_seconds()
-
-bool validTF = chartSeconds == 900 or chartSeconds == 3600 or chartSeconds == 14400
+int  chartSeconds = timeframe.in_seconds()
+bool validTF      = chartSeconds == 900 or chartSeconds == 3600 or chartSeconds == 14400
 
 if barstate.isfirst
     if not chart.is_standard or not validTF
         runtime.error("Standart 15m, 1H veya 4H grafik kullanin.")
 
 // 3 - GERCEK 4H HESAPLAMA
+// f_h4() 10 deger dondurur (Pine v6 tuple limiti icin guveli aralik).
+// prevHigh/prevLow/rangeHigh/rangeLow/close ayri security cagrisiyla alinir.
 
 f_h4() =>
     float ema = ta.ema(close, emaLen)
@@ -51,29 +52,25 @@ f_h4() =>
     [stLine, stDirection] = ta.supertrend(stFactor, stLen)
     [diPlus, diMinus, adx] = ta.dmi(diLen, adxSmooth)
 
-    // Onaylanmis 4H swing tepe ve dipleri
+    // Onaylanmis swing seviyeleri
     float ph = ta.pivothigh(high, pivotLen, pivotLen)
-    float pl = ta.pivotlow(low, pivotLen, pivotLen)
+    float pl = ta.pivotlow(low,  pivotLen, pivotLen)
 
     float lastHigh = ta.valuewhen(not na(ph), ph, 0)
     float prevHigh = ta.valuewhen(not na(ph), ph, 1)
+    float lastLow  = ta.valuewhen(not na(pl), pl, 0)
+    float prevLow  = ta.valuewhen(not na(pl), pl, 1)
 
-    float lastLow = ta.valuewhen(not na(pl), pl, 0)
-    float prevLow = ta.valuewhen(not na(pl), pl, 1)
-
-    // 4H fiyat yapisi
-    bool structureUp = not na(prevHigh) and not na(prevLow) and lastHigh > prevHigh and lastLow > prevLow
-
+    // Fiyat yapisi
+    bool structureUp   = not na(prevHigh) and not na(prevLow) and lastHigh > prevHigh and lastLow > prevLow
     bool structureDown = not na(prevHigh) and not na(prevLow) and lastHigh < prevHigh and lastLow < prevLow
 
-    // Onceki teyitli swing seviyelerinin kirilmasi
-    bool bosUp = not na(lastHigh[1]) and close > lastHigh[1] and close[1] <= lastHigh[1]
-
-    bool bosDown = not na(lastLow[1]) and close < lastLow[1] and close[1] >= lastLow[1]
+    // Yapi kirilmasi (BOS)
+    bool bosUp   = not na(lastHigh[1]) and close > lastHigh[1] and close[1] <= lastHigh[1]
+    bool bosDown = not na(lastLow[1])  and close < lastLow[1]  and close[1] >= lastLow[1]
 
     // Yardimci momentum
-    bool momentumUp = stDirection < 0 and hma > hma[2] and diPlus > diMinus
-
+    bool momentumUp   = stDirection < 0 and hma > hma[2] and diPlus > diMinus
     bool momentumDown = stDirection > 0 and hma < hma[2] and diMinus > diPlus
 
     // Ana yonu kalici tut
@@ -93,27 +90,37 @@ f_h4() =>
         else if momentumDown and close < ema
             mainTrend := -1
 
-    // 4H destek ve direnc
-    float rangeHigh = ta.highest(high, srLen)
-    float rangeLow = ta.lowest(low, srLen)
+    // 10 deger dondur - tamamlanmis 4H mumu
+    [mainTrend[1], ema[1], hma[1], stLine[1], stDirection[1], diPlus[1], diMinus[1], adx[1], lastHigh[1], lastLow[1]]
 
-    // Sadece tamamlanmis 4H mumlarini dondur
-    [mainTrend[1], close[1], ema[1], hma[1], stLine[1], stDirection[1], diPlus[1], diMinus[1], adx[1], lastHigh[1], prevHigh[1], lastLow[1], prevLow[1], rangeHigh[1], rangeLow[1], bosUp[1], bosDown[1], bar_index[1]]
+// Yardimci fonksiyonlar: ayri security cagrilari icin
+f_prevHigh4H() =>
+    float ph = ta.pivothigh(high, pivotLen, pivotLen)
+    ta.valuewhen(not na(ph), ph, 1)[1]
 
-// 4 - 4H VERISINI GRAFIKTE GOSTER
+f_prevLow4H() =>
+    float pl = ta.pivotlow(low, pivotLen, pivotLen)
+    ta.valuewhen(not na(pl), pl, 1)[1]
 
-[trend4H, close4H, ema4H, hma4H, st4H, stDir4H, diPlus4H, diMinus4H, adx4H, high4H, prevHigh4H, low4H, prevLow4H, rangeHigh4H, rangeLow4H, bosUp4H, bosDown4H, count4H] = request.security(syminfo.tickerid, "240", f_h4(), lookahead=barmerge.lookahead_on)
+// 4 - 4H VERISI
+
+[trend4H, ema4H, hma4H, st4H, stDir4H, diPlus4H, diMinus4H, adx4H, high4H, low4H] = request.security(syminfo.tickerid, "240", f_h4(), lookahead=barmerge.lookahead_on)
+
+close4H     = request.security(syminfo.tickerid, "240", close[1],                   lookahead=barmerge.lookahead_on)
+prevHigh4H  = request.security(syminfo.tickerid, "240", f_prevHigh4H(),             lookahead=barmerge.lookahead_on)
+prevLow4H   = request.security(syminfo.tickerid, "240", f_prevLow4H(),              lookahead=barmerge.lookahead_on)
+rangeHigh4H = request.security(syminfo.tickerid, "240", ta.highest(high, srLen)[1], lookahead=barmerge.lookahead_on)
+rangeLow4H  = request.security(syminfo.tickerid, "240", ta.lowest(low,  srLen)[1],  lookahead=barmerge.lookahead_on)
 
 // 5 - VERI KONTROLU
 
-bool ready = count4H >= math.max(emaLen, hmaLen) + 10 and not na(ema4H) and not na(hma4H) and not na(st4H) and not na(adx4H)
+bool ready = not na(ema4H) and not na(hma4H) and not na(st4H) and not na(adx4H)
 
 int direction = ready ? trend4H : 0
 
 // 6 - 4H YAPI SINIFLANDIRMASI
 
 bool structureBull = not na(prevHigh4H) and not na(prevLow4H) and high4H > prevHigh4H and low4H > prevLow4H
-
 bool structureBear = not na(prevHigh4H) and not na(prevLow4H) and high4H < prevHigh4H and low4H < prevLow4H
 
 string structureText = structureBull ? "HH / HL" : structureBear ? "LH / LL" : "KARISIK"
@@ -122,8 +129,8 @@ string structureText = structureBull ? "HH / HL" : structureBear ? "LH / LL" : "
 
 int shortDirection = stDir4H < 0 ? 1 : stDir4H > 0 ? -1 : 0
 
-bool correction = direction == 1 and shortDirection == -1
-bool rebound = direction == -1 and shortDirection == 1
+bool correction = direction == 1  and shortDirection == -1
+bool rebound    = direction == -1 and shortDirection == 1
 
 string trendText = not ready ? "VERI BEKLENIYOR" : direction == 1 ? "YUKSELIS" : direction == -1 ? "DUSUS" : "BELIRSIZ"
 
@@ -133,31 +140,26 @@ color trendColor = direction == 1 ? color.rgb(20, 145, 80) : direction == -1 ? c
 
 // 8 - DESTEK VE DIRENC
 
-float support = not na(low4H) and low4H < close4H ? low4H : rangeLow4H
-
+float support    = not na(low4H)  and low4H  < close4H ? low4H  : rangeLow4H
 float resistance = not na(high4H) and high4H > close4H ? high4H : rangeHigh4H
 
 // 9 - YENI 4H MUM
 
 bool new4H = timeframe.change("240")
 
-bool changedUp = ready and new4H and direction == 1 and direction[1] != 1
-
+bool changedUp   = ready and new4H and direction == 1  and direction[1] != 1
 bool changedDown = ready and new4H and direction == -1 and direction[1] != -1
 
 // 10 - TREND CIZGILERI
 
-plot(showEMA ? ema4H : na, "4H EMA", color=color.blue, linewidth=2, style=plot.style_stepline)
-
-plot(showHMA ? hma4H : na, "4H HMA", color=color.orange, linewidth=2, style=plot.style_stepline)
-
-plot(showST ? st4H : na, "4H Supertrend", color=shortDirection == 1 ? color.lime : color.red, linewidth=2, style=plot.style_stepline)
+plot(showEMA ? ema4H : na, "4H EMA",        color=color.blue,   linewidth=2, style=plot.style_stepline)
+plot(showHMA ? hma4H : na, "4H HMA",        color=color.orange, linewidth=2, style=plot.style_stepline)
+plot(showST  ? st4H  : na, "4H Supertrend", color=shortDirection == 1 ? color.lime : color.red, linewidth=2, style=plot.style_stepline)
 
 // 11 - DESTEK DIRENC CIZGILERI
 
-plot(showSR ? support : na, "4H Destek", color=color.green, linewidth=2, style=plot.style_stepline)
-
-plot(showSR ? resistance : na, "4H Direnc", color=color.red, linewidth=2, style=plot.style_stepline)
+plot(showSR ? support    : na, "4H Destek", color=color.green, linewidth=2, style=plot.style_stepline)
+plot(showSR ? resistance : na, "4H Direnc", color=color.red,   linewidth=2, style=plot.style_stepline)
 
 // 12 - ARKA PLAN
 
@@ -167,55 +169,50 @@ bgcolor(showBg and ready ? bgColor : na)
 
 // 13 - TREND DEGISIM ETIKETLERI
 
-plotshape(showSignals and changedUp, title="4H Yukselis", style=shape.labelup, location=location.belowbar, color=color.green, text="4H UP", textcolor=color.white, size=size.tiny)
-
-plotshape(showSignals and changedDown, title="4H Dusus", style=shape.labeldown, location=location.abovebar, color=color.red, text="4H DOWN", textcolor=color.white, size=size.tiny)
+plotshape(showSignals and changedUp,   title="4H Yukselis", style=shape.labelup,   location=location.belowbar, color=color.green, text="4H UP",   textcolor=color.white, size=size.tiny)
+plotshape(showSignals and changedDown, title="4H Dusus",    style=shape.labeldown, location=location.abovebar, color=color.red,   text="4H DOWN", textcolor=color.white, size=size.tiny)
 
 // 14 - PANEL
 
 int chartBarsPer4H = int(14400 / chartSeconds)
 
-var table t = table.new(position.top_right, 2, 10, border_width=1)
+var table t = table.new(position.top_right, 2, 9, border_width=1)
 
 if barstate.islast and showPanel
-    color dark = color.rgb(27, 37, 54)
+    color dark  = color.rgb(27, 37, 54)
     color rowBg = color.rgb(44, 54, 72)
 
-    table.cell(t, 0, 0, "AYAZ V5", text_color=color.white, bgcolor=dark)
-    table.cell(t, 1, 0, "4H TREND", text_color=color.white, bgcolor=dark)
+    table.cell(t, 0, 0, "AYAZ V5",    text_color=color.white, bgcolor=dark)
+    table.cell(t, 1, 0, "4H TREND",   text_color=color.white, bgcolor=dark)
 
-    table.cell(t, 0, 1, "ANA YON", text_color=color.white, bgcolor=rowBg)
-    table.cell(t, 1, 1, trendText, text_color=color.white, bgcolor=trendColor)
+    table.cell(t, 0, 1, "ANA YON",    text_color=color.white, bgcolor=rowBg)
+    table.cell(t, 1, 1, trendText,    text_color=color.white, bgcolor=trendColor)
 
-    table.cell(t, 0, 2, "HAREKET", text_color=color.white, bgcolor=rowBg)
-    table.cell(t, 1, 2, phaseText, text_color=color.white, bgcolor=rowBg)
+    table.cell(t, 0, 2, "HAREKET",    text_color=color.white, bgcolor=rowBg)
+    table.cell(t, 1, 2, phaseText,    text_color=color.white, bgcolor=rowBg)
 
-    table.cell(t, 0, 3, "4H YAPI", text_color=color.white, bgcolor=rowBg)
+    table.cell(t, 0, 3, "4H YAPI",    text_color=color.white, bgcolor=rowBg)
     table.cell(t, 1, 3, structureText, text_color=color.white, bgcolor=rowBg)
 
     table.cell(t, 0, 4, "SUPERTREND", text_color=color.white, bgcolor=rowBg)
     table.cell(t, 1, 4, shortDirection == 1 ? "YUKARI" : "ASAGI", text_color=color.white, bgcolor=rowBg)
 
-    table.cell(t, 0, 5, "DI+ / DI-", text_color=color.white, bgcolor=rowBg)
+    table.cell(t, 0, 5, "DI+ / DI-",  text_color=color.white, bgcolor=rowBg)
     table.cell(t, 1, 5, str.tostring(diPlus4H, "#.0") + " / " + str.tostring(diMinus4H, "#.0"), text_color=color.white, bgcolor=rowBg)
 
-    table.cell(t, 0, 6, "4H ADX", text_color=color.white, bgcolor=rowBg)
+    table.cell(t, 0, 6, "4H ADX",     text_color=color.white, bgcolor=rowBg)
     table.cell(t, 1, 6, str.tostring(adx4H, "#.0"), text_color=color.white, bgcolor=rowBg)
 
-    table.cell(t, 0, 7, "DESTEK", text_color=color.white, bgcolor=rowBg)
-    table.cell(t, 1, 7, str.tostring(support, format.mintick), text_color=color.lime, bgcolor=rowBg)
+    table.cell(t, 0, 7, "DESTEK",     text_color=color.white, bgcolor=rowBg)
+    table.cell(t, 1, 7, str.tostring(support,    format.mintick), text_color=color.lime,   bgcolor=rowBg)
 
-    table.cell(t, 0, 8, "DIRENC", text_color=color.white, bgcolor=rowBg)
+    table.cell(t, 0, 8, "DIRENC",     text_color=color.white, bgcolor=rowBg)
     table.cell(t, 1, 8, str.tostring(resistance, format.mintick), text_color=color.orange, bgcolor=rowBg)
-
-    table.cell(t, 0, 9, "4H / GRAFIK", text_color=color.white, bgcolor=rowBg)
-    table.cell(t, 1, 9, str.tostring(chartBarsPer4H) + " MUM", text_color=color.white, bgcolor=rowBg)
 
 // 15 - ALARMLAR
 
-alertcondition(changedUp, title="AYAZ 4H UP", message="4H ana trend yukselise gecti: {{ticker}}")
-
-alertcondition(changedDown, title="AYAZ 4H DOWN", message="4H ana trend dususe gecti: {{ticker}}")
+alertcondition(changedUp,   title="AYAZ 4H UP",   message="4H ana trend yukselise gecti: {{ticker}}")
+alertcondition(changedDown, title="AYAZ 4H DOWN",  message="4H ana trend dususe gecti: {{ticker}}")
 
 // ===========================================
 // AYAZ TREND V5 - KOD SONU
